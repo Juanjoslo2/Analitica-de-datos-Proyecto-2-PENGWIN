@@ -1,1 +1,25 @@
-data/*
+01_data/*
+!01_data/.gitkeep
+!01_data/splits.json
+000_pruebas_y_experimentos_locales/
+000_pruebas_y_experimentos_locales/*
+*.md
+!REAMDME.md
+!IA_USAGE.md
+
+# Entorno y cachés
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Datos derivados y pesos (se publican en GitHub Releases, no en git)
+data_processed/
+checkpoints/*.pth
+*.pth
+!checkpoints/.gitkeep
+runs/
+sam_*.pth
+cloudflared*

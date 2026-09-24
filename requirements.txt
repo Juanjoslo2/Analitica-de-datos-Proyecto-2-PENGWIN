@@ -1,0 +1,58 @@
+# =============================================================================
+# PENGWIN - Proyecto Integrador Corte 2 (UAO 2026-2)
+# Entorno reproducible: Python 3.12 (verificado también con 3.13)
+#
+# Instalación (Windows, PowerShell):
+#   py -3.12 -m venv .venv
+#   .\.venv\Scripts\Activate.ps1
+#   python -m pip install --upgrade pip
+#   pip install -r requirements.txt
+#
+# Instalación (Linux / WSL / Colab):
+#   python3.12 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# Verificación rápida:
+#   python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+#   -> debe imprimir 2.10.0+cu128 True en un equipo con GPU NVIDIA.
+#
+# Tras la primera instalación en el equipo de referencia, congelar TODO el árbol:
+#   pip freeze > requirements-lock.txt   (y versionarlo)
+# =============================================================================
+
+# En Windows, el torch de PyPI es SOLO CPU. Este índice adicional entrega la
+# build CUDA 12.8 (la misma del curso: torch 2.10.0+cu128, RTX 30xx/40xx/50xx).
+# Las builds +cu128 también corren en CPU, así que sirven para medir latencia CPU.
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+# --- Núcleo deep learning (misma versión usada en las sesiones de clase) ------
+torch==2.10.0
+torchvision==0.25.0          # solo pesos ImageNet del backbone y utilidades de tensores
+
+# --- Cómputo numérico y científico ------------------------------------------
+numpy==2.3.5
+scipy==1.16.3                # ndimage.distance_transform_edt (sampling=spacing) y label 3D
+pandas==2.3.3
+scikit-learn==1.7.2          # F1, AUC, matriz de confusión, split estratificado por caso
+scikit-image==0.25.2         # measure.marching_cubes, watershed
+
+# --- Imagen médica -----------------------------------------------------------
+SimpleITK==2.5.6             # lectura .mha/.nii.gz, spacing, reorientación DICOMOrient
+nibabel==5.3.3               # lectura NIfTI si se exportan volúmenes a .nii.gz
+
+# --- Visualización y dashboard -----------------------------------------------
+matplotlib==3.10.8
+seaborn==0.13.2
+plotly==6.5.2                # Mesh3d (visualizador 3)
+streamlit==1.52.2            # dashboard (se expone con cloudflared, binario externo)
+
+# --- Baseline zero-shot (SOLO evaluación, nunca en el pipeline final) --------
+segment-anything==1.0        # checkpoint sam_vit_b_01ec64.pth se descarga aparte
+
+# --- Utilidades --------------------------------------------------------------
+tqdm==4.67.1
+PyYAML==6.0.3                # configs/*.yaml con hiperparámetros y semillas
+
+# --- Pruebas y notebooks -----------------------------------------------------
+pytest==8.4.2
+ipykernel==6.30.1
