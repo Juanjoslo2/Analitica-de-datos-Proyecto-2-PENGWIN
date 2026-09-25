@@ -7,11 +7,11 @@
 !01_data/splits.json
 000_pruebas_y_experimentos_locales/
 000_pruebas_y_experimentos_locales/*
+pengwin.egg-info/
 # Markdown: se ignoran notas sueltas, pero NO los entregables
 *.md
 !README.md
 !IA_USAGE.md
-00_docs/*.md
 !reports/**/*.md
 
 # Entorno y cachés
