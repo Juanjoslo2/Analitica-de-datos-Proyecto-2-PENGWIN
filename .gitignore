@@ -1,11 +1,18 @@
-01_data/*
-!01_data/.gitkeep
+01_data/PENGWIN_CT_train_images_part1/
+01_data/PENGWIN_CT_train_images_part1/*
+01_data/PENGWIN_CT_train_images_part2/
+01_data/PENGWIN_CT_train_images_part2/*
+01_data/PENGWIN_CT_train_labels/
+01_data/PENGWIN_CT_train_labels/*
 !01_data/splits.json
 000_pruebas_y_experimentos_locales/
 000_pruebas_y_experimentos_locales/*
+# Markdown: se ignoran notas sueltas, pero NO los entregables
 *.md
-!REAMDME.md
+!README.md
 !IA_USAGE.md
+00_docs/*.md
+!reports/**/*.md
 
 # Entorno y cachés
 .venv/
@@ -23,3 +30,6 @@ checkpoints/*.pth
 runs/
 sam_*.pth
 cloudflared*
+
+# Caché del EDA (se regenera con scripts/run_eda_extract.py); las tablas consolidadas sí se versionan
+reports/eda/cache/
