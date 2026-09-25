@@ -39,3 +39,48 @@ Formato por entrada: modelo · fecha · prompt exacto · qué produjo la IA · q
 ---
 
 ## Entrada 002 — 
+
+---
+
+## Entrada 002 — Revisión del código de la semana 8 y EDA orientado a decisiones
+
+- **Modelo:** Claude (Anthropic), configurado como `claude-opus-5-5`, con acceso a la carpeta del repositorio.
+- **Fecha:** 2026-09-24
+- **Autor del prompt:** Yaxul Santiago Cárdenas Hincapié
+
+**Prompt exacto:**
+> Revisa los cambios que realice, si hay mejoras dentro del código mejóralas. Lo que he echo: Próximos pasos (semana 8) 1. Hacer commit de la reorganización y proteger la rama `main`. 2. Crear el cargador de volúmenes con reorientación a LPS y una prueba que verifique el lado izquierdo y derecho. 3. Preprocesar y guardar los cortes en caché, y crear `splits.json` separando por paciente, nunca por corte. 4. Implementar el Visualizador 1 (MIP). Lo que me falta: 1. Ampliar el EDA con estos hallazgos. El EDA haz todos los análisis necesario para poder entender los datos que estamos manejando, con la capacidad de a partir de este EDA poder tomar decisiones sobre el proyecto
+
+**Errores que la IA encontró en el código del equipo y cómo se corrigieron:**
+
+| Archivo | Problema | Corrección |
+|---|---|---|
+| `data_loader.py` | `verify_left_right_consistency` comparaba `izq != der`: pasaba incluso con un caso RAS sin reorientar | Exige `x_izq > x_der` (LPS); nuevo test que falla si no se reorienta |
+| `data_loader.py` | etiquetas en `int16`; sin aviso de imágenes/etiquetas huérfanas | `uint8`; avisos y error por duplicados |
+| `mip_viewer.py` | camilla visible; escala autoajustada (el metal de hasta ~47 000 HU oscurecía el hueso); ejes en píxeles; `plt.show()` dentro de la función | silueta del paciente, ventana fija [250, 1800] HU, ejes en mm, devuelve `Figure`, MIP rotacional para el dashboard |
+| `.gitignore` | `*.md` + `!REAMDME.md` (errata) dejaban fuera README, plan y model card | excepciones correctas para entregables |
+| `__init__.py` | `__all__` con nombres inexistentes; importaba matplotlib al importar el paquete | limpiado |
+| `data/test.py` | script suelto dentro de `src` | migrado a `06_tests/test_data_integrity.py` (pytest) |
+| `create_splits.py` | estratificación "≤ 6 / > 6 fragmentos": test con 67 % de sacros fracturados vs 43 % en train (SMD máx 0,44) | búsqueda de la partición con menor SMD máximo (0,155), `sha256` en el JSON; v1 respaldada en `000_…` |
+
+**Qué produjo la IA:**
+- `03_src/pengwin/data/preprocessing.py` (silueta, recorte al cuerpo y recorte óseo).
+- `03_src/pengwin/eda/` (extracción por caso y consolidación).
+- `scripts/run_eda_extract.py`.
+- `04_notebook/01_eda_pengwin.ipynb` (12 secciones con una decisión cada una).
+- `06_tests/` (11 tests) y `pyproject.toml`.
+
+**Errores propios de la IA durante el trabajo (para el análisis crítico):**
+1. La primera versión del recorte óseo usaba solo la componente 2D más grande y **cortaba hueso en 9/100 casos** (una pelvis fracturada se proyecta en dos mitades). El propio EDA lo detectó con la verificación "recorte contiene todo el hueso"; se corrigió conservando las componentes ≥ 25 % y las cercanas (≤ 30 mm).
+2. El estilo global de matplotlib del notebook se filtraba al MIP (cuadrícula sobre la imagen); se desactivó en `plot_orthogonal_mip`.
+3. En el notebook, los pesos de CE por frecuencia inversa daban 0,01 al fondo; se cambiaron a 1/√frecuencia.
+
+**Qué debe verificar el equipo (completar):**
+- [ ] Ejecutar `python -m pytest` en Windows con el entorno del `requirements.txt`.
+- [ ] Revisar visualmente los casos de la lista de vigilancia (§10) y los de metal cercano (027, 100).
+- [ ] Confirmar la partición v2 antes de entrenar: cambiarla después invalida la comparación de ablaciones.
+
+**Análisis crítico (completar por el equipo):**
+- Aciertos:
+- Errores / supuestos no verificados:
+- Limitaciones:

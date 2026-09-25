@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pengwin"
+version = "0.1.0"
+description = "Detección, segmentación y medición de fracturas pélvicas en CT (PENGWIN) — Proyecto Integrador UAO 2026-2"
+requires-python = ">=3.12"
+
+# `pip install -e .` hace importable `pengwin` desde notebooks, scripts, app y tests
+[tool.setuptools.packages.find]
+where = ["03_src"]
+
+[tool.pytest.ini_options]
+testpaths = ["06_tests"]
+pythonpath = ["03_src"]          # los tests corren aun sin `pip install -e .`
+markers = ["data: requiere los .mha de 01_data (se omite si no están)"]
