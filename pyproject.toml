@@ -15,4 +15,8 @@ where = ["03_src"]
 [tool.pytest.ini_options]
 testpaths = ["06_tests"]
 pythonpath = ["03_src"]          # los tests corren aun sin `pip install -e .`
-markers = ["data: requiere los .mha de 01_data (se omite si no están)"]
+markers = [
+    "data: requiere los .mha de 01_data (se omite si no están)",
+    "slow: entrenamiento corto, p. ej. la prueba de overfit (no corre en CI)",
+]
+addopts = "-m 'not slow'"

@@ -1,14 +1,14 @@
+# Datos crudos PENGWIN (~32 GB, se descargan de Zenodo; nunca a git)
 01_data/PENGWIN_CT_train_images_part1/
-01_data/PENGWIN_CT_train_images_part1/*
 01_data/PENGWIN_CT_train_images_part2/
-01_data/PENGWIN_CT_train_images_part2/*
 01_data/PENGWIN_CT_train_labels/
-01_data/PENGWIN_CT_train_labels/*
+!01_data/.gitkeep
 !01_data/splits.json
+
+# Zona personal de pruebas (no se sube)
 000_pruebas_y_experimentos_locales/
-000_pruebas_y_experimentos_locales/*
-pengwin.egg-info/
-# Markdown: se ignoran notas sueltas, pero NO los entregables
+
+# Markdown: solo README, IA_USAGE y los reportes llegan al repositorio
 *.md
 !README.md
 !IA_USAGE.md
@@ -21,14 +21,16 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .pytest_cache/
+pytest-cache-files-*/
+*.egg-info/
+build/
+dist/
 
-# Datos derivados y pesos (se publican en GitHub Releases, no en git)
+# Datos derivados y pesos (los .pth se publican en GitHub Releases)
 data_processed/
-checkpoints/*.pth
 *.pth
 !checkpoints/.gitkeep
 runs/
-sam_*.pth
 cloudflared*
 
 # Caché del EDA (se regenera con scripts/run_eda_extract.py); las tablas consolidadas sí se versionan
