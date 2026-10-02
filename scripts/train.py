@@ -12,6 +12,7 @@ Salida:
     checkpoints/<name>/best.pth, last.pth       (no se versionan: GitHub Releases)
     runs/<name>/history.csv                     (una fila por época: pérdidas y métricas de val)
     reports/train/<name>.json                   (config efectiva, λ usados, mejores métricas; se versiona)
+    reports/train/<name>_history.csv            (copia versionable del historial)
 """
 
 import argparse
@@ -109,6 +110,8 @@ def main() -> None:
     out.write_text(json.dumps({"config": str(args.config.name), "epochs": epochs, "max_steps": args.max_steps,
                                "lambdas": lambdas, "parametros": count_parameters(model),
                                "mejor": best_metrics, "cfg": cfg}, indent=1, default=str), encoding="utf-8")
+    # copia versionable del historial (runs/ no se sube): la usan las curvas y el notebook de sustentación
+    (out.parent / f"{args.name}_history.csv").write_bytes((run_dir / "history.csv").read_bytes())
     print(f"Mejor época {best_metrics.get('epoch')}: score {best:.3f} -> {ckpt_dir / 'best.pth'}")
 
 
