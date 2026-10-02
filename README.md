@@ -14,7 +14,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 pip install -e .          # hace importable el paquete `pengwin` (03_src/pengwin)
-python -m pytest          # 06_tests: 16 tests con phantoms sintéticos + 4 con datos (se omiten si 01_data está vacío)
+python -m pytest          # 06_tests: 50 tests con phantoms sintéticos + 5 con datos (se omiten si no están)
 ```
 
 ## Datos y partición
@@ -40,6 +40,33 @@ El notebook consolida el caché en `reports/eda/eda_*.csv` (versionados), guarda
 ```powershell
 python 03_src/pengwin/visualization/mip_viewer.py 001
 ```
+
+## Modelo (semana 9)
+
+Backbone FundidoraPC extendida (residual + CBAM en los bloques 3 y 4) → clasificación, detección por grid propio de stride 8 con NMS propio y segmentación semántica + borde. Diseño y evidencia en `reports/decisiones_de_diseno.md` §8.
+
+Si el repositorio está en OneDrive, conviene dejar los datos (~32 GB) y el caché (~5 GB) **fuera** de la carpeta sincronizada; todos los scripts aceptan `--data-dir` / `--cache-dir`.
+
+```powershell
+# 1. Caché de cortes 256×256 (una vez, reanudable; ~10-30 s por caso; --shard k/n para paralelizar)
+python scripts/build_slice_cache.py --data-dir D:/PENGWIN/01_data --cache-dir D:/PENGWIN/data_processed
+
+# 2. Prueba de correctitud: overfit de 8 cortes (criterios en DD §5)
+python scripts/overfit_batch.py --cache-dir D:/PENGWIN/data_processed
+
+# 3. Calibración de λ -> reports/lambdas.json (la usa el entrenamiento con `lambdas: auto`)
+python scripts/calibrate_lambdas.py --cache-dir D:/PENGWIN/data_processed
+
+# 4. Entrenamiento y ablaciones
+python scripts/train.py --cache-dir D:/PENGWIN/data_processed --name base
+python scripts/train.py --cache-dir D:/PENGWIN/data_processed --name sin_cbam  --config configs/ablation_no_cbam.yaml
+python scripts/train.py --cache-dir D:/PENGWIN/data_processed --name sin_tl    --config configs/ablation_scratch.yaml
+
+# 5. Galería de predicciones (cajas + máscaras sobre cortes de val)
+python scripts/predict_slices.py --ckpt checkpoints/base/best.pth --cache-dir D:/PENGWIN/data_processed
+```
+
+Los pesos de transfer learning (`checkpoints/fundidora_taller3.pth`, FundidoraPC del Taller 3) y los checkpoints entrenados se publican en GitHub Releases, no en git. Para los tests con datos: `$env:PENGWIN_DATA_DIR="D:/PENGWIN/01_data"; $env:PENGWIN_CACHE_DIR="D:/PENGWIN/data_processed"; python -m pytest -m "data or slow"`.
 
 ## Decisiones de diseño
 
