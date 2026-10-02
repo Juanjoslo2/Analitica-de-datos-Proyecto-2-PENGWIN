@@ -1,7 +1,8 @@
 """plot_training_curves.py.
 
 Curvas de entrenamiento de varios modelos en paralelo (ablación): métricas de val y
-pérdidas por época, leídas de runs/<nombre>/history.csv.
+pérdidas por época, leídas de reports/train/<nombre>_history.csv (versionado; copia de
+runs/<nombre>/history.csv, que no se versiona).
 
 Uso:
     python scripts/plot_training_curves.py                         # base, sin_cbam, sin_tl
@@ -34,12 +35,20 @@ PANELS = [
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
 
+def load_history(run: str) -> pd.DataFrame:
+    """Historial versionado en reports/train; si no está, el de runs/ (corrida local)."""
+    for p in (REPO / "reports" / "train" / f"{run}_history.csv", REPO / "runs" / run / "history.csv"):
+        if p.exists():
+            return pd.read_csv(p)
+    raise FileNotFoundError(f"No hay historial para '{run}'")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", nargs="+", default=["base", "sin_cbam", "sin_tl"])
     ap.add_argument("--out", type=Path, default=REPO / "reports" / "figures" / "semana9" / "curvas_entrenamiento.png")
     args = ap.parse_args()
-    hist = {r: pd.read_csv(REPO / "runs" / r / "history.csv") for r in args.runs}
+    hist = {r: load_history(r) for r in args.runs}
 
     plt.rcParams.update({"font.size": 9, "axes.edgecolor": MUTED, "axes.labelcolor": MUTED,
                          "xtick.color": MUTED, "ytick.color": MUTED, "axes.titlecolor": INK})

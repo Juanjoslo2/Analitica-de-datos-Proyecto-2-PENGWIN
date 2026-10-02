@@ -11,12 +11,14 @@ from typing import Dict, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import to_rgb
 from matplotlib.patches import Rectangle
 
 from pengwin.data.targets import REGION_NAMES
 
-# Paleta apta para daltonismo (Okabe-Ito): SA naranja, coxal izq. azul cielo, coxal der. verde
-REGION_COLORS = {"SA": (0.90, 0.62, 0.0), "LI": (0.34, 0.71, 0.91), "RI": (0.0, 0.62, 0.45)}
+# Misma paleta que el EDA y el notebook de sustentación (validada para daltonismo):
+# SA azul, coxal izq. naranja, coxal der. aqua. Un hueso tiene el mismo color en todo el proyecto.
+REGION_COLORS = {name: to_rgb(h) for name, h in {"SA": "#2a78d6", "LI": "#eb6834", "RI": "#1baf7a"}.items()}
 
 
 def colorize(semantic: np.ndarray, alpha: float = 0.45) -> np.ndarray:
