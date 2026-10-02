@@ -125,3 +125,28 @@ entrada (B, 3, 256, 256) = cortes (z−Δ, z, z+Δ)
 | Gradiente en backbone y 3 cabezas | sí | sí |
 
 Reporte y curvas: `reports/overfit/overfit_base.json|png`.
+
+## 9. Ablación: CBAM y transfer learning (semana 9)
+
+Tres modelos de 40 épocas cada uno, entrenados en ANTON (DGX Spark). Comparten datos, semilla, λ (`reports/lambdas.json`) y configuración; cada ablación cambia una sola cosa. El mejor checkpoint se elige en val (promedio de mAP@0.5, Dice y F1) y se evalúa en **test** (15 pacientes nunca vistos, 4279 cortes) con `scripts/evaluate.py`.
+
+| Test | Base (CBAM + TL) | Sin CBAM | Sin TL (desde cero) | Objetivo §5 |
+|---|---|---|---|---|
+| F1 clasificación | 0,993 | 0,992 | 0,992 | ≥ 0,85 |
+| AUC | 0,999 | 0,999 | 0,999 | ≥ 0,85 |
+| mAP@0.5 | 0,977 | 0,980 | 0,976 | ≥ 0,65 |
+| mAP@[.5:.95] | 0,841 | 0,845 | 0,840 | ≥ 0,40 |
+| IoU promedio de caja | 0,911 | 0,912 | 0,911 | ≥ 0,65 |
+| AP@0.5 sacro | 0,941 | 0,948 | 0,936 | — |
+| Dice por región | 0,968 | 0,970 | 0,971 | ≥ 0,85* |
+| Dice sacro | 0,954 | 0,960 | 0,961 | — |
+
+\* El objetivo del enunciado es Dice **por fragmento**, que llega en la semana 10. Este es el Dice por región anatómica.
+
+Detalle: `reports/eval/*_test.json`, `reports/train/*.json`; curvas en `runs/<nombre>/history.csv` (no versionado).
+
+**Lectura:**
+- Los tres modelos quedan prácticamente empatados (diferencias ≤ 0,01). Ni CBAM ni el transfer learning desde MVTec mejoran de forma medible el resultado final.
+- Con una sola semilla por modelo, diferencias de este tamaño no se pueden separar del azar. Afirmar una ventaja exigiría repetir con varias semillas.
+- El transfer learning **sí acelera la convergencia**: en las épocas 0–2, el mAP@[.5:.95] en val fue 0,664 / 0,706 / 0,730 con TL contra 0,650 / 0,672 / 0,679 desde cero. Con 19 000 cortes, el modelo desde cero alcanza al otro antes de la época 40.
+- **Interpretación:** el hueso es la estructura más brillante del corte en la ventana L400/W1800, así que la atención espacial tiene poco que "señalar". Y los pesos de MVTec solo aportan detectores genéricos de bordes, que la red aprende sola con este volumen de datos.
