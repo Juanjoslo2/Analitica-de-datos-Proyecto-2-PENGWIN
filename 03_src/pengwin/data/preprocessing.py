@@ -149,3 +149,43 @@ def compute_bone_crop(
     y0, x0 = cy - side // 2, cx - side // 2
     return BodyCrop(int(y0), int(y0 + side), int(x0), int(x0 + side), int(side),
                     (float(spacing_zyx[1]), float(spacing_zyx[2])))
+
+
+def transform_boxes_to_crop(
+    boxes: np.ndarray,
+    crop: BodyCrop,
+    output_size: int = 256,
+) -> np.ndarray:
+    """Transforma bounding boxes del espacio original al espacio crop + resize.
+
+    Parameters
+    ----------
+    boxes:
+        Array de forma (N, 4) con [x1, y1, x2, y2].
+    crop:
+        Recorte calculado por compute_bone_crop().
+    output_size:
+        Tamaño final de la imagen cuadrada.
+
+    Returns
+    -------
+    np.ndarray
+        Bounding boxes transformadas al espacio de salida.
+    """
+
+    if len(boxes) == 0:
+        return boxes.astype(np.float32)
+
+    boxes = boxes.astype(np.float32).copy()
+
+    # 1. Pasar de coordenadas del volumen original
+    #    a coordenadas relativas al crop.
+    boxes[:, [0, 2]] -= crop.x0
+    boxes[:, [1, 3]] -= crop.y0
+
+    # 2. Escalar de crop.side_px × crop.side_px
+    #    a output_size × output_size.
+    scale = output_size / crop.side_px
+    boxes *= scale
+
+    return boxes

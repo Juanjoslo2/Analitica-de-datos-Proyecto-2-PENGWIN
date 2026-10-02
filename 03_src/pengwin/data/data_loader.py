@@ -256,3 +256,14 @@ if __name__ == "__main__":
         ok, msg = verify_left_right_consistency(mask)
         print(f"\nTest de consistencia lateral: {'CORRECTO' if ok else 'FALLO'}")
         print(f"Detalle: {msg}")
+
+def label_id_to_class_idx(label_id: int) -> int:
+    """Convierte un ID de etiqueta PENGWIN a la clase del detector."""
+
+    for meta in ANATOMICAL_RANGES.values():
+        low, high = meta["range"]
+
+        if low <= label_id <= high:
+            return meta["class_idx"]
+
+    raise ValueError(f"Label ID desconocido: {label_id}")
