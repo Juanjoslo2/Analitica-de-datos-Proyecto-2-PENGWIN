@@ -1,0 +1,2 @@
+base: ../base.yaml
+data: {edge_file: edge_d3.npy}

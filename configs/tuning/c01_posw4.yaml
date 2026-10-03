@@ -1,0 +1,2 @@
+base: ../base.yaml
+loss: {edge_pos_weight: 4}

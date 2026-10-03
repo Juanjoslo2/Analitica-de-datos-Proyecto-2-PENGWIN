@@ -67,14 +67,15 @@ def separate_region(mask: np.ndarray, edge: np.ndarray, spacing_zyx: Sequence[fl
 
 
 def separate_region_edt(mask: np.ndarray, edge: np.ndarray, spacing_zyx: Sequence[float], edge_threshold: float = 0.2,
-                        seed_depth_mm: float = 4.0, seed_min_cm3: float = 0.02, max_fragments: int = 10) -> np.ndarray:
+                        seed_depth_mm: float = 4.0, seed_min_cm3: float = 0.02, max_fragments: int = 10,
+                        edge_weight: float = 5.0) -> np.ndarray:
     """Variante por distancia (semana 10): las semillas son las zonas "profundas" del núcleo.
 
     1. núcleo = región sin borde (P(borde) ≥ ``edge_threshold``)
     2. d = distance_transform_edt(núcleo, spacing) en mm
     3. semillas = componentes 3D de d > ``seed_depth_mm``: las grietas y los cuellos finos entre
        fragmentos nunca son profundos, así que separan aunque la segmentación los haya rellenado
-    4. watershed sobre −d + 5·borde dentro de la región
+    4. watershed sobre −d + ``edge_weight``·borde dentro de la región
     En val (v2), recupera el 61 % de los secundarios frente al 2 % de la variante solo-borde.
     """
     out = np.zeros(mask.shape, np.int32)
@@ -94,7 +95,7 @@ def separate_region_edt(mask: np.ndarray, edge: np.ndarray, spacing_zyx: Sequenc
     markers = np.zeros(cc.shape, np.int32)
     for new_id, old_id in enumerate(keep, start=1):
         markers[cc == old_id] = new_id
-    lab = watershed(-d + 5.0 * e, markers=markers, mask=m)
+    lab = watershed(-d + edge_weight * e, markers=markers, mask=m)
     lost = m & (lab == 0)
     if lost.any():
         idx = ndi.distance_transform_edt(lab == 0, sampling=spacing_zyx, return_distances=False, return_indices=True)
@@ -108,7 +109,7 @@ def separate_region_edt(mask: np.ndarray, edge: np.ndarray, spacing_zyx: Sequenc
 
 def separate_instances(semantic: np.ndarray, edge: np.ndarray, spacing_zyx: Sequence[float], edge_threshold: float = 0.5,
                        min_fragment_cm3: float = 0.1, max_fragments: int = 10, method: str = "edge",
-                       seed_depth_mm: float = 4.0) -> np.ndarray:
+                       seed_depth_mm: float = 4.0, seed_min_cm3: float = 0.02, edge_weight: float = 5.0) -> np.ndarray:
     """Volumen de etiquetas PENGWIN (0, 1-10 SA, 11-20 LI, 21-30 RI) a partir de semántica + borde.
 
     ``method``: "edge" (semillas = componentes del núcleo sin borde) o "edt" (semillas = zonas a
@@ -118,7 +119,7 @@ def separate_instances(semantic: np.ndarray, edge: np.ndarray, spacing_zyx: Sequ
     for r in (1, 2, 3):
         if method == "edt":
             frag = separate_region_edt(semantic == r, edge, spacing_zyx, edge_threshold, seed_depth_mm,
-                                       max_fragments=max_fragments)
+                                       seed_min_cm3, max_fragments, edge_weight)
         else:
             frag = separate_region(semantic == r, edge, spacing_zyx, edge_threshold, min_fragment_cm3, max_fragments)
         labels[frag > 0] = (r - 1) * 10 + frag[frag > 0]

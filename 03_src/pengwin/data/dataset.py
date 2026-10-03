@@ -84,6 +84,7 @@ class PengwinSlices(Dataset):
         self.min_box_px = float(cfg["model"].get("det_min_box_px", 4))
         self.edge_dilation = int(cfg["loss"].get("edge_dilation_px", 2))
         self.aug_cfg = cfg.get("augment", {})
+        self.edge_file = cfg["data"].get("edge_file", "edge.npy")
         # Solo se guardan los meta: los .npy se abren con mmap de forma perezosa en cada
         # proceso (en Windows los workers se crean con spawn y un memmap se copiaría entero).
         self.meta = {}
@@ -98,6 +99,9 @@ class PengwinSlices(Dataset):
             self.index = [(str(c), int(z)) for c, z in slices]
         else:
             self.index = self._build_index(float(cfg["data"].get("empty_slice_fraction", 0.12)), int(cfg.get("seed", 42)))
+            k = int(cfg["data"].get("secondary_oversample", 1))
+            if train and k > 1:
+                self.index = self._oversample_secondary(self.index, k)
         self._epoch = 0
 
     def __getstate__(self):
@@ -108,7 +112,7 @@ class PengwinSlices(Dataset):
     def _case(self, cid: str):
         if cid not in self._arrays:
             image, label, _ = load_case_cache(self.cache_dir / cid)
-            self._arrays[cid] = (image, label, load_edge_cache(self.cache_dir / cid))
+            self._arrays[cid] = (image, label, load_edge_cache(self.cache_dir / cid, name=self.edge_file))
         return self._arrays[cid]
 
     def _build_index(self, empty_fraction: float, seed: int) -> List[tuple]:
@@ -121,6 +125,17 @@ class PengwinSlices(Dataset):
             chosen = rng.choice(empty, size=n_empty, replace=False).tolist() if n_empty else []
             index += [(cid, z) for z in sorted(bone)] + [(cid, int(z)) for z in sorted(chosen)]
         return index
+
+    def _oversample_secondary(self, index: List[tuple], k: int) -> List[tuple]:
+        """Repite ``k`` veces los cortes que contienen algún fragmento secundario (id 2-10 dentro de
+        su región). Los secundarios ocupan poco del total de cortes y son los que más se pierden."""
+        extra = []
+        for cid in self.meta:
+            label = load_case_cache(self.cache_dir / cid)[1]
+            frag = (label.reshape(label.shape[0], -1).astype(np.int16) - 1) % 10
+            has_sec = ((frag >= 1) & (label.reshape(label.shape[0], -1) > 0)).any(1)
+            extra += [(cid, int(z)) for z in np.nonzero(has_sec)[0]] * (k - 1)
+        return index + extra
 
     def set_epoch(self, epoch: int) -> None:
         """Cambia la semilla de la aumentación por época (reproducible y distinta en cada época)."""
