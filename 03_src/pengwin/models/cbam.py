@@ -44,16 +44,23 @@ class SpatialAttention(nn.Module):
 
 
 class CBAM(nn.Module):
-    """Canal -> espacial, en ese orden (el artículo muestra que es mejor que en paralelo)."""
+    """Canal -> espacial, en ese orden (el artículo muestra que es mejor que en paralelo).
 
-    def __init__(self, channels: int, reduction: int = 16, kernel_size: int = 7):
+    Con ``gamma=True`` la salida es  y = x + γ · (CBAM(x) − x),  con γ escalar aprendible que
+    arranca en 0: el bloque empieza como identidad y γ mide cuánto decide usar la red la
+    atención (γ ≈ 0 la ignora, γ ≈ 1 la aplica completa).
+    """
+
+    def __init__(self, channels: int, reduction: int = 16, kernel_size: int = 7, gamma: bool = False):
         super().__init__()
         self.channel = ChannelAttention(channels, reduction)
         self.spatial = SpatialAttention(kernel_size)
+        self.gamma = nn.Parameter(torch.zeros(1)) if gamma else None
         self.last_spatial_map: torch.Tensor | None = None     # para visualizar dónde mira la red
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x * self.channel(x)
-        m = self.spatial(x)
+        y = x * self.channel(x)
+        m = self.spatial(y)
         self.last_spatial_map = m.detach()
-        return x * m
+        y = y * m
+        return y if self.gamma is None else x + self.gamma * (y - x)

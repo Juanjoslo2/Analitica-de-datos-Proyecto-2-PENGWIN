@@ -28,16 +28,23 @@ def conv_bn_relu(c_in: int, c_out: int, k: int = 3) -> nn.Sequential:
 
 
 class TopDownNeck(nn.Module):
-    """P3 = conv( lateral(C3) + up×2( lateral(C4) ) )."""
+    """P3 = conv( lateral(C3) + γ · up×2( lateral(C4) ) ).
 
-    def __init__(self, c3: int, c4: int, out_channels: int = 128):
+    Con ``gamma=True``, γ es un escalar aprendible que arranca en 1: dice cuánto contexto del
+    nivel profundo (C4) usa la detección/segmentación frente al nivel de stride 8 (C3).
+    """
+
+    def __init__(self, c3: int, c4: int, out_channels: int = 128, gamma: bool = False):
         super().__init__()
         self.lat3 = nn.Conv2d(c3, out_channels, 1)
         self.lat4 = nn.Conv2d(c4, out_channels, 1)
         self.smooth = conv_bn_relu(out_channels, out_channels)
+        self.gamma = nn.Parameter(torch.ones(1)) if gamma else None
 
     def forward(self, c3: torch.Tensor, c4: torch.Tensor) -> torch.Tensor:
         up = F.interpolate(self.lat4(c4), size=c3.shape[-2:], mode="nearest")
+        if self.gamma is not None:
+            up = self.gamma * up
         return self.smooth(self.lat3(c3) + up)
 
 
@@ -79,9 +86,12 @@ class GridDetectionHead(nn.Module):
 class SegmentationHead(nn.Module):
     """Decodificador tipo U-Net: P3 (s8) → s4 (+C2) → s2 (+C1) → s1."""
 
-    def __init__(self, p3: int, c2: int, c1: int, num_classes: int = 4, width: int = 64):
+    def __init__(self, p3: int, c2: int, c1: int, num_classes: int = 4, width: int = 64, spatial_dropout: float = 0.0):
         super().__init__()
         self.up4 = conv_bn_relu(p3 + c2, width)
+        # Dropout espacial solo a stride 4 (64 canales): más arriba, a stride 2 y 1, quedan pocos
+        # canales y apagarlos borraría el detalle fino del borde de fractura.
+        self.drop = nn.Dropout2d(spatial_dropout) if spatial_dropout > 0 else nn.Identity()
         self.up2 = conv_bn_relu(width + c1, width // 2)
         self.up1 = conv_bn_relu(width // 2, width // 2)
         self.semantic = nn.Conv2d(width // 2, num_classes, 1)
@@ -92,7 +102,7 @@ class SegmentationHead(nn.Module):
         return torch.cat([F.interpolate(x, size=skip.shape[-2:], mode="bilinear", align_corners=False), skip], dim=1)
 
     def forward(self, p3: torch.Tensor, c2: torch.Tensor, c1: torch.Tensor, out_size):
-        x = self.up4(self._up_cat(p3, c2))
+        x = self.drop(self.up4(self._up_cat(p3, c2)))
         x = self.up2(self._up_cat(x, c1))
         x = self.up1(F.interpolate(x, size=out_size, mode="bilinear", align_corners=False))
         return self.semantic(x), self.edge(x)

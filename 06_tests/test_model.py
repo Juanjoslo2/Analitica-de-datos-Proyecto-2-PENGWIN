@@ -96,3 +96,31 @@ def test_gradient_reaches_backbone_and_three_heads():
         mod = getattr(model, name)
         assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in mod.parameters()), name
     assert all(p.grad is not None for p in model.backbone.shared_parameters())
+
+
+def test_gamma_gates_start_as_identity_and_report():
+    from pengwin.models.cbam import CBAM
+
+    cbam = CBAM(16, gamma=True).eval()
+    x = torch.rand(2, 16, 8, 8)
+    assert torch.equal(cbam(x), x), "con γ = 0 el CBAM debe arrancar como identidad"
+    model = PengwinNet({**BASE["model"], "cbam_gamma": True, "neck_gamma": True})
+    g = model.gammas()
+    assert g["CBAM b3"] == g["CBAM b4"] == 0.0 and g["cuello C4"] == 1.0
+    assert all(g[f"residual b{k}"] == 0.0 for k in range(1, 5))
+
+
+def test_spatial_dropout_only_deep_blocks_and_only_in_train():
+    cfg = {**BASE["model"], "spatial_dropout": 0.5, "spatial_dropout_blocks": [3, 4], "seg_spatial_dropout": 0.5}
+    model = PengwinNet(cfg)
+    drops = [type(st.drop).__name__ for st in model.backbone.stages]
+    assert drops == ["Identity", "Identity", "Dropout2d", "Dropout2d"]
+    x = torch.rand(1, 3, 64, 64)
+    model.eval()
+    with torch.no_grad():
+        a, b = model(x)["seg_logits"], model(x)["seg_logits"]
+    assert torch.equal(a, b), "en eval el dropout no actúa"
+    model.train()
+    c4 = model.backbone(x)[-1]
+    zeros = (c4.flatten(2).abs().sum(-1) == 0).float().mean()
+    assert zeros > 0.2, "Dropout2d debe apagar canales completos"

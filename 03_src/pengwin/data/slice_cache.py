@@ -5,6 +5,7 @@ Caché de cortes listos para el modelo [EDA §2-4, DD §1]. Cada caso se lee UNA
 
     image.npy  uint8 (Z, 256, 256)  ventana L400/W1800 cuantizada (≈ 7 HU por nivel)
     label.npy  uint8 (Z, 256, 256)  ids PENGWIN 0..30, vecino más cercano (no inventa ids)
+    edge.npy   uint8 (Z, 256, 256)  borde de fractura 3D dilatado (objetivo de la salida de borde)
     meta.json  spacing nativo, recorte óseo, mm/px efectivo, Δ de contexto, cortes con hueso
 
 Los .npy van sin comprimir para abrirlos con ``mmap_mode="r"``: el ``Dataset`` lee solo
@@ -27,8 +28,10 @@ from scipy import ndimage as ndi
 
 from pengwin.data.data_loader import apply_bone_window, load_and_standardize_mha
 from pengwin.data.preprocessing import HU_AIR, BodyCrop, apply_crop, compute_bone_crop
+from pengwin.data.targets import fracture_edge_3d
 
 CACHE_VERSION = 1
+EDGE_DILATION = 2     # iteraciones de dilatación 3D del borde (oráculo en test: 71 % de secundarios separables)
 CHUNK_Z = 48          # cortes por bloque al redimensionar (acota la RAM en casos de 400+ cortes)
 
 
@@ -88,6 +91,8 @@ def build_case_cache(
             raise ValueError(f"{case_id}: imagen {native_shape} y etiqueta {lab.shape} no coinciden")
         lab = _resize_stack(apply_crop(lab, crop, fill=0), image_size, order=0)
         np.save(out / "label.npy", lab)
+        np.save(out / "edge.npy", fracture_edge_3d(lab, EDGE_DILATION).astype(np.uint8))
+        meta["edge_dilation"] = EDGE_DILATION
         meta["bone_slices"] = np.nonzero(lab.reshape(lab.shape[0], -1).max(1) > 0)[0].tolist()
         meta["labels_present"] = [int(v) for v in np.unique(lab) if v > 0]
 
@@ -105,6 +110,26 @@ def load_case_cache(case_dir: Path | str, mmap: bool = True) -> Tuple[np.ndarray
     image = np.load(case_dir / "image.npy", mmap_mode=mode)
     label = np.load(case_dir / "label.npy", mmap_mode=mode) if (case_dir / "label.npy").exists() else None
     return image, label, meta
+
+
+def add_edge_cache(case_dir: Path | str, dilation: int = 2) -> int:
+    """Añade ``edge.npy`` (borde de fractura 3D) a un caso ya cacheado, sin releer el .mha.
+
+    Devuelve el número de vóxeles de borde. Los cachés de la semana 9 no lo tienen.
+    """
+    case_dir = Path(case_dir)
+    label = np.load(case_dir / "label.npy")
+    edge = fracture_edge_3d(label, dilation).astype(np.uint8)
+    np.save(case_dir / "edge.npy", edge)
+    meta = json.loads((case_dir / "meta.json").read_text(encoding="utf-8"))
+    meta["edge_dilation"] = dilation
+    (case_dir / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    return int(edge.sum())
+
+
+def load_edge_cache(case_dir: Path | str, mmap: bool = True) -> np.ndarray | None:
+    path = Path(case_dir) / "edge.npy"
+    return np.load(path, mmap_mode="r" if mmap else None) if path.exists() else None
 
 
 def crop_from_meta(meta: Dict) -> BodyCrop:

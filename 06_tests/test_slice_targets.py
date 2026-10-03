@@ -54,3 +54,17 @@ def test_edge_dilation_stays_in_bone():
 def test_empty_slice():
     t = slice_targets(np.zeros((16, 16), np.uint8))
     assert not t["present"].any() and t["edge"].sum() == 0 and t["semantic"].max() == 0
+
+
+def test_edge_3d_sees_contact_between_slices():
+    """Dos fragmentos apilados en z: el borde 2D no ve el contacto; el 3D sí."""
+    from pengwin.data.targets import fracture_edge_3d
+
+    lab = np.zeros((6, 16, 16), np.uint8)
+    lab[0:3, 4:12, 4:12] = 11          # principal abajo
+    lab[3:6, 4:12, 4:12] = 12          # fragmento encima, contacto entre z=2 y z=3
+    e2d = np.stack([fracture_edge_2d(lab[z], 0) for z in range(6)])
+    e3d = fracture_edge_3d(lab, dilation=0)
+    assert not e2d.any()
+    assert e3d[2, 4:12, 4:12].all() and e3d[3, 4:12, 4:12].all() and not e3d[0].any()
+    assert not fracture_edge_3d(lab, dilation=2)[lab == 0].any(), "la dilatación no sale del hueso"
