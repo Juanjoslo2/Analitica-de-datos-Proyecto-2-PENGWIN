@@ -65,7 +65,9 @@ def main() -> None:
     depth = args.seed_depth_mm if args.seed_depth_mm is not None else pp.get("seed_depth_mm", 4.0)
     model = PengwinNet(cfg["model"]).to(device).eval()
     model.load_state_dict(ck["model"])
-    pairs = {p["case_id"]: p for p in get_dataset_pairs(args.data_dir)}
+    # Solo se necesitan las etiquetas nativas (la imagen sale del caché): basta con PENGWIN_CT_train_labels
+    labels_dir = args.data_dir / "PENGWIN_CT_train_labels"
+    pairs = {f.stem: {"label_path": f} for f in labels_dir.glob("*.mha")} or {p["case_id"]: p for p in get_dataset_pairs(args.data_dir)}
     cases = args.cases or read_split(REPO / cfg["data"]["splits"], args.split)
 
     frag_rows, dist_rows, per_case = [], [], {}

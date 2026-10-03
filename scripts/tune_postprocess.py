@@ -74,6 +74,7 @@ def main() -> None:
     ap.add_argument("--grid", required=True)
     ap.add_argument("--base", default="method=edt;edge_threshold=0.2;seed_depth_mm=5;seed_min_cm3=0.02;edge_weight=5")
     ap.add_argument("--jobs", type=int, default=12)
+    ap.add_argument("--only-folds", default=None, help="p. ej. 0,1,2: evalúa solo esos folds")
     args = ap.parse_args()
 
     base = {k: v[0] for k, v in parse_spec(args.base).items()}
@@ -81,7 +82,8 @@ def main() -> None:
     keys = list(grid)
     combos = [{**base, **dict(zip(keys, vals))} for vals in itertools.product(*(grid[k] for k in keys))]
     folds = json.loads(args.folds_file.read_text(encoding="utf-8"))["folds"]
-    tasks = [(c, k, args.oof.format(fold=k), str(args.cache_dir), combos) for k, f in enumerate(folds) for c in f]
+    use = set(range(len(folds))) if not args.only_folds else {int(x) for x in args.only_folds.split(",")}
+    tasks = [(c, k, args.oof.format(fold=k), str(args.cache_dir), combos) for k, f in enumerate(folds) if k in use for c in f]
     print(f"{len(combos)} combinaciones × {len(tasks)} casos", flush=True)
 
     acc = {}
@@ -103,7 +105,7 @@ def main() -> None:
     params = list(combos[0])
     agg = df.groupby("combo").agg(**{f"{m}_media": (m, "mean") for m in METRICS}, **{f"{m}_desv": (m, "std") for m in METRICS})
     agg = pd.concat([pd.DataFrame(combos)[params], agg], axis=1).sort_values("dice_fragmento_media", ascending=False)
-    (out_dir / f"{args.name}.json").write_text(json.dumps({"grid": args.grid, "base": args.base, "folds": len(folds),
+    (out_dir / f"{args.name}.json").write_text(json.dumps({"grid": args.grid, "base": args.base, "folds": sorted(use),
                                                            "ranking": agg.to_dict(orient="records")}, indent=1),
                                                encoding="utf-8")
     show = params[1:] + ["dice_fragmento_media", "dice_fragmento_desv", "iou_fragmento_media",
