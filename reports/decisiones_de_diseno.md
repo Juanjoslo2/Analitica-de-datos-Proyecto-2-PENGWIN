@@ -150,3 +150,182 @@ Detalle: `reports/eval/*_test.json`, `reports/train/*.json`; curvas en `runs/<no
 - Con una sola semilla por modelo, diferencias de este tamaño no se pueden separar del azar. Afirmar una ventaja exigiría repetir con varias semillas.
 - El transfer learning **sí acelera la convergencia**: en las épocas 0–2, el mAP@[.5:.95] en val fue 0,664 / 0,706 / 0,730 con TL contra 0,650 / 0,672 / 0,679 desde cero. Con 19 000 cortes, el modelo desde cero alcanza al otro antes de la época 40.
 - **Interpretación:** el hueso es la estructura más brillante del corte en la ventana L400/W1800, así que la atención espacial tiene poco que "señalar". Y los pesos de MVTec solo aportan detectores genéricos de bordes, que la red aprende sola con este volumen de datos.
+
+## 10. Semana 10: qué aporta cada componente, dropout espacial y fragmentos
+
+### 10.1 ¿Qué aporta cada parte? (`scripts/component_contribution.py`)
+
+Sobre el modelo base entrenado (val, 6 casos, 1575 cortes) se midieron tres cosas: el γ aprendido, cuánto cambia cada componente las features y un **knockout** (apagar el componente en inferencia y medir la caída).
+
+| Componente apagado | Δ mAP@[.5:.95] | Δ Dice | Δ Dice sacro |
+|---|---|---|---|
+| residual bloque 1 | −0,042 | −0,006 | −0,007 |
+| residual bloque 2 | −0,032 | −0,003 | −0,005 |
+| residual bloque 3 | −0,021 | 0,000 | +0,002 |
+| residual bloque 4 | −0,528 | −0,163 | −0,116 |
+| CBAM bloque 3 | −0,142 | −0,081 | −0,190 |
+| CBAM bloque 4 | −0,106 | −0,098 | −0,251 |
+| contexto C4 en P3 | −0,802 | −0,496 | −0,543 |
+| contexto 2.5D (vecinos = corte central) | −0,045 | −0,022 | −0,020 |
+
+**Knockout ≠ ablación.** El knockout mide cuánto **depende** la red entrenada de un componente. La ablación mide cuánto **aporta** si se reentrena sin él. El CBAM es el mejor ejemplo: apagarlo hunde el sacro (−0,25), pero el modelo entrenado sin CBAM llega al mismo resultado (§9). La red se apoya en lo que tiene, y si no lo tiene, compensa.
+
+**Por qué el γ.** La medida "cambio relativo" (‖y − x‖/‖x‖) exagera el CBAM: su sigmoide reduce todo el mapa a ~la mitad, y eso parece cambio aunque no lo sea. Por eso, desde `v2`:
+- el CBAM se mezcla como y = x + γ·(CBAM(x) − x), con γ que arranca en 0;
+- el contexto profundo entra en P3 como C3 + γ·up(C4), con γ que arranca en 1.
+
+Los γ finales dicen directamente cuánto decidió usar la red cada componente (`PengwinNet.gammas()`).
+
+### 10.2 Dropout espacial
+
+`Dropout2d` (apaga canales completos), p = 0,1:
+- a la salida de los bloques 3 y 4 (128 y 256 canales), después del CBAM;
+- en el decodificador de segmentación a stride 4 (64 canales).
+
+Por qué así:
+- **Dropout2d y no dropout por píxel:** los píxeles vecinos están correlacionados, así que apagar píxeles sueltos casi no regulariza.
+- **No en los bloques 1–2 ni en el decodificador a stride 2/1:** hay pocos canales y llevan el detalle fino del borde de fractura.
+- **No en la torre de detección:** la regresión de cajas es sensible y su mAP@[.5:.95] no mostraba sobreajuste.
+- **Motivación:** la pérdida de validación se aplanaba hacia la época 17 y la del borde subía (BCE de val 0,025 → 0,089).
+
+### 10.3 Separación de fragmentos: el borde tiene que ser 3D
+
+Pipeline (`inference/volume.py`, `postprocess/instances.py`):
+1. El modelo predice región y borde corte a corte, y se apila (Z, 256, 256).
+2. Por región: núcleo = región sin borde.
+3. Componentes conexas 3D del núcleo. Las menores de 0,1 cm³ no son semilla.
+4. Watershed sobre el borde, para devolver los píxeles de borde a su fragmento.
+5. Se ordena por volumen: el mayor es el principal.
+6. Se vuelve a la grilla nativa del .mha (`to_native`).
+
+**Primer resultado con el modelo base:** el principal de cada hueso queda bien (Dice 0,90), pero **ningún secundario se separaba**. Hubo dos causas:
+
+1. **La cabeza de borde sobreajustó.** Pérdida Dice del borde en train 0,10 contra 0,39 en val; en test predice P(borde) ≈ 0 sobre bordes reales.
+2. **Diseño:** el borde objetivo se calculaba en 2D, dentro de cada corte, y no veía los contactos **entre cortes**. Con el borde real (oráculo) en test, sobre la etiqueta en la grilla del modelo:
+
+| Borde usado para separar (oráculo GT) | Secundarios recuperados (IoU ≥ 0,5) | Dice secundario |
+|---|---|---|
+| 2D, dilatación 2 (semana 9) | 35 % | 0,34 |
+| 3D, dilatación 1 | 38 % | 0,37 |
+| **3D, dilatación 2** | **71 %** | **0,69** |
+
+**Cambios para `v2`:**
+- El objetivo de borde ahora es 3D (6-vecindad incluyendo z, dilatación 2 dentro del hueso), precalculado en el caché como `edge.npy` (`build_slice_cache.py --edges-only`). El modelo sigue siendo 2D: aprende a marcar también los contactos con los cortes vecinos, que ve por la entrada 2.5D.
+- `edge_pos_weight` = 9. Antes era 21, calculado como √(1:446) con el borde **sin** dilatar, pero lo que se entrenaba era el borde dilatado. La regla √(hueso:borde) aplicada al objetivo real (1:83) da 9.
+- **λ recalibrados** con la pérdida nueva: cls 0,70, det 0,94, seg 1,35 (antes 1,31 / 0,67 / 1,03; los anteriores quedan en `reports/lambdas_semana9.json`).
+
+### 10.4 Latencia (`scripts/latency.py`, batch 1, modelo + decodificación + NMS)
+
+| Dispositivo | Media | p95 |
+|---|---|---|
+| CPU Intel 11.ª gen (Tiger Lake-H), 8 hilos, fp32 | 102 ms/corte | 114 ms |
+| GPU RTX 3060 Laptop, fp32 | 10 ms/corte | 13 ms |
+| GPU RTX 3060 Laptop, AMP | 13 ms/corte | 16 ms |
+
+Un volumen completo (401 cortes, batch 16) tarda 3,4 s en GPU. A batch 1, AMP es un poco más lento que fp32 por el costo de convertir tipos; el AMP rinde en entrenamiento.
+
+### 10.5 SAM zero-shot como línea base (`scripts/sam_baseline.py`)
+
+SAM ViT-B (`sam_vit_b_01ec64.pth`, sha256 `ec2df627…`) recibe el mismo corte que ve el modelo y, como prompt, la caja que predijo nuestro detector para cada región. Test: 15 pacientes, 3 765 cortes con hueso. Se compara contra el GT por región, sumando todos los píxeles del conjunto.
+
+| Método | Dice | IoU | Dice SA | Dice LI | Dice RI |
+|---|---|---|---|---|---|
+| **Modelo propio (base)** | **0,968** | **0,938** | **0,954** | **0,975** | **0,974** |
+| SAM + caja predicha | 0,908 | 0,832 | 0,863 | 0,927 | 0,932 |
+| SAM + caja GT (cota de SAM) | 0,908 | 0,832 | 0,866 | 0,925 | 0,931 |
+
+- El modelo específico le gana a SAM por 6 puntos de Dice y 11 de IoU. La diferencia más grande está en el sacro (+9), cuya forma irregular con agujeros (forámenes) SAM no sigue bien.
+- SAM rinde igual con nuestras cajas que con las reales: el detector no es lo que limita a SAM.
+- Costo: SAM tarda ~417 ms por corte en la RTX 3060, contra ~12 ms del modelo propio.
+
+### 10.6 Fragmentos con el modelo base (antes de `v2`)
+
+`scripts/evaluate_fragments.py`, test, 84 fragmentos GT (45 principales y 39 secundarios), medido en la grilla nativa del .mha:
+
+| Métrica | Valor |
+|---|---|
+| Dice por fragmento (todos) | 0,545 |
+| IoU por fragmento | 0,505 |
+| Dice principal | 0,921 |
+| Dice secundario | 0,111 |
+| Secundarios recuperados (IoU ≥ 0,5) | 12,8 % (5 de 39) |
+| Error de distancia en los recuperados (MAE) | 1,06 mm |
+
+Esta es la línea de partida: el modelo base no separa los secundarios, por las causas descritas en §10.3. `v2` se evalúa con el mismo script.
+
+### 10.7 `v2` y la separación por distancia
+
+**`v2`** = borde 3D + `pos_weight` 9 + λ recalibrados + γ (CBAM y cuello) + dropout espacial. Mismos 40 épocas en ANTON. En test, con las métricas de la semana 9, la última época mejora al modelo base en las cajas finas:
+
+| Test | base | v2 (época 22, "mejor") | v2 (época 39) |
+|---|---|---|---|
+| mAP@0.5 | 0,977 | 0,979 | 0,980 |
+| mAP@[.5:.95] | 0,841 | 0,848 | **0,864** |
+| IoU de caja | 0,911 | 0,914 | **0,919** |
+| Dice por región | 0,968 | 0,970 | **0,971** |
+| Dice sacro | 0,954 | 0,961 | **0,961** |
+
+El criterio de selección elegía la época 22 porque usaba mAP@0.5, que se satura en ~0,98. Desde ahora usa mAP@[.5:.95] (`engine.selection_score`).
+
+**Pero `v2` sola no separó mejor los fragmentos** (10 % de secundarios). El diagnóstico en test, cruzando región y borde predichos con los reales:
+
+| Región \ borde usados para separar | Secundarios recuperados |
+|---|---|
+| predicha + predicho | 8 % |
+| predicha + real | 11 % |
+| real + predicho | 12 % |
+| real + real | 71 % |
+
+Hay dos cuellos de botella:
+- el borde predicho solo encuentra el 15 % del borde real;
+- la región predicha "rellena" las grietas, y eso reconecta los fragmentos aunque el borde fuera perfecto.
+
+**Solución en el posproceso (ajustada en val, sin reentrenar):** semillas por distancia (`instance_method: edt`).
+- d = `distance_transform_edt` del núcleo (región sin borde).
+- Las semillas son las zonas con d > h. Los cuellos y las grietas nunca son profundos, así que separan aunque la red los haya rellenado.
+- Watershed sobre −d + 5·borde.
+
+Barrido en val (v2, 15 casos):
+
+| Método | h (mm) | Secundarios recuperados | Dice fragmento |
+|---|---|---|---|
+| solo borde, umbral 0,05–0,5 | — | 1,8 % | 0,531 |
+| EDT, umbral 0,2 | 2 | 31,0 % | 0,638 |
+| EDT, umbral 0,2 | 3 | 46,4 % | 0,705 |
+| EDT, umbral 0,2 | 4 | 61,3 % | 0,765 |
+| **EDT, umbral 0,2** | **5** | **67,3 %** | **0,790** |
+| EDT, umbral 0,2 | 6 | 59,5 % | 0,764 |
+| EDT, umbral 0,2 | 8 | 33,3 % | 0,622 |
+
+**Resultado en test** (`evaluate_fragments.py`, grilla nativa, 84 fragmentos):
+
+| Por fragmento | base, posproceso semana 10 inicial | base + EDT | **v2 + EDT** | Objetivo §5 |
+|---|---|---|---|---|
+| Dice | 0,545 | 0,717 | **0,725** | ≥ 0,85 |
+| IoU | 0,505 | 0,657 | **0,671** | ≥ 0,70 |
+| Dice principal | 0,921 | 0,920 | **0,930** | — |
+| Dice secundario | 0,111 | 0,483 | **0,489** | — |
+| Secundarios recuperados | 12,8 % | 51,3 % | **51,3 %** | — |
+| Dice secundarios < 5 cm³ (7) | 0,22 | 0,00 | 0,00 | — |
+| Error de distancia (MAE, recuperados) | 1,1 mm (5) | 0,3 mm (20) | 2,2 mm (20) | — |
+
+Lectura honesta:
+- Los objetivos por fragmento **todavía no se cumplen** (Dice 0,725 contra 0,85). Los principales sí (0,93); lo que baja el promedio son los secundarios.
+- Los menores de 5 cm³ no reciben semilla con h = 5 mm. Es el precio del umbral que maximiza el total.
+- El error de distancia se calcula sobre apenas 20 secundarios recuperados, y cambia mucho entre modelos, porque unos pocos fragmentos mal delimitados lo dominan.
+
+### 10.8 ¿Qué aporta cada parte en `v2`? (γ + knockout, val)
+
+| Componente | γ aprendido | Δ mAP@[.5:.95] al apagarlo | Δ Dice sacro |
+|---|---|---|---|
+| residual b1 / b2 / b3 | 0,25 / 0,22 / 0,21 | −0,042 / −0,027 / −0,033 | ≈ 0 |
+| residual b4 | 0,32 | −0,513 | −0,248 |
+| CBAM b3 | **0,18** | −0,002 | −0,001 |
+| CBAM b4 | **−1,90** | −0,068 | −0,020 |
+| contexto C4 en P3 | 0,72 | −0,793 | −0,474 |
+| contexto 2.5D | — | −0,043 | −0,021 |
+
+- Con γ, la red puede **ignorar** un componente, y el knockout deja de exagerar.
+- La red casi no usa el CBAM del bloque 3: γ = 0,18, y apagarlo no cambia nada.
+- El CBAM del bloque 4 sí se usa, con γ negativo: y = 2,9·x − 1,9·CBAM(x), es decir, resalta lo que la atención atenuaría (un realce de contraste).
+- Lo indispensable es el bloque residual 4 y el contexto profundo que entra al cuello.

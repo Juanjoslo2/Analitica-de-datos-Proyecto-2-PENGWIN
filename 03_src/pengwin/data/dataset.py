@@ -27,7 +27,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
-from pengwin.data.slice_cache import load_case_cache
+from pengwin.data.slice_cache import load_case_cache, load_edge_cache
 from pengwin.data.targets import slice_targets
 
 
@@ -42,7 +42,10 @@ def context_stack(image: np.ndarray, z: int, delta: int) -> np.ndarray:
 
 
 def _random_affine(img: torch.Tensor, lab: torch.Tensor, rng: np.random.Generator, aug: Dict):
-    """Afín aleatoria común a imagen (bilineal) y etiqueta (vecino más cercano)."""
+    """Afín aleatoria común a imagen (bilineal) y mapas enteros (vecino más cercano).
+
+    ``lab`` puede ser (H, W) o (K, H, W): etiqueta y borde se transforman juntos.
+    """
     s = rng.uniform(*aug.get("scale", (0.9, 1.1)))
     a = math.radians(rng.uniform(-aug.get("rotate_deg", 10), aug.get("rotate_deg", 10)))
     tx, ty = rng.uniform(-aug.get("translate", 0.05), aug.get("translate", 0.05), size=2) * 2
@@ -50,8 +53,9 @@ def _random_affine(img: torch.Tensor, lab: torch.Tensor, rng: np.random.Generato
                           [math.sin(a) / s, math.cos(a) / s, ty]], dtype=torch.float32)[None]
     grid = F.affine_grid(theta, (1, 1, *img.shape[-2:]), align_corners=False)
     img = F.grid_sample(img[None], grid, mode="bilinear", padding_mode="zeros", align_corners=False)[0]
-    lab = F.grid_sample(lab[None, None].float(), grid, mode="nearest", padding_mode="zeros", align_corners=False)[0, 0]
-    return img, lab.to(torch.uint8)
+    stack = lab[None] if lab.dim() == 2 else lab
+    out = F.grid_sample(stack[None].float(), grid, mode="nearest", padding_mode="zeros", align_corners=False)[0]
+    return img, (out[0] if lab.dim() == 2 else out).to(torch.uint8)
 
 
 def _random_intensity(img: torch.Tensor, rng: np.random.Generator, aug: Dict) -> torch.Tensor:
@@ -104,7 +108,7 @@ class PengwinSlices(Dataset):
     def _case(self, cid: str):
         if cid not in self._arrays:
             image, label, _ = load_case_cache(self.cache_dir / cid)
-            self._arrays[cid] = (image, label)
+            self._arrays[cid] = (image, label, load_edge_cache(self.cache_dir / cid))
         return self._arrays[cid]
 
     def _build_index(self, empty_fraction: float, seed: int) -> List[tuple]:
@@ -127,17 +131,23 @@ class PengwinSlices(Dataset):
 
     def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
         cid, z = self.index[i]
-        image, label = self._case(cid)
+        image, label, edge3d = self._case(cid)
         meta = self.meta[cid]
         img = torch.from_numpy(context_stack(image, z, meta["context_offset"]).astype(np.float32) / 255.0)
         lab = torch.from_numpy(np.array(label[z], dtype=np.uint8))
+        edge = torch.from_numpy(np.array(edge3d[z], dtype=np.uint8)) if edge3d is not None else None
 
         if self.augment:
             rng = np.random.default_rng((int(self.cfg.get("seed", 42)), self._epoch, i))
-            img, lab = _random_affine(img, lab, rng, self.aug_cfg)
+            if edge is None:
+                img, lab = _random_affine(img, lab, rng, self.aug_cfg)
+            else:
+                img, both = _random_affine(img, torch.stack([lab, edge]), rng, self.aug_cfg)
+                lab, edge = both[0], both[1]
             img = _random_intensity(img, rng, self.aug_cfg)
 
-        t = slice_targets(lab.numpy(), self.min_box_px, self.edge_dilation)
+        # borde 3D del caché si existe (semana 10); si no, el 2D calculado del corte (semana 9)
+        t = slice_targets(lab.numpy(), self.min_box_px, self.edge_dilation, None if edge is None else edge.numpy())
         return {
             "image": img,
             "semantic": torch.from_numpy(t["semantic"]),

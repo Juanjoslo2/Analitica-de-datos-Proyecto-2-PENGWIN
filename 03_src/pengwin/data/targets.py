@@ -54,6 +54,36 @@ def fracture_edge_2d(label: np.ndarray, dilation_px: int = 2) -> np.ndarray:
     return edge
 
 
+def _shift3(a: np.ndarray, axis: int, step: int) -> np.ndarray:
+    out = np.zeros_like(a)
+    src = [slice(None)] * 3
+    dst = [slice(None)] * 3
+    src[axis] = slice(max(-step, 0), a.shape[axis] - max(step, 0))
+    dst[axis] = slice(max(step, 0), a.shape[axis] - max(-step, 0))
+    out[tuple(dst)] = a[tuple(src)]
+    return out
+
+
+def fracture_edge_3d(label: np.ndarray, dilation: int = 2) -> np.ndarray:
+    """Superficie de fractura en 3D (Z, H, W): vóxeles de hueso con un 6-vecino de OTRO
+    fragmento de la misma región, incluidos los vecinos de los cortes de arriba y abajo.
+
+    Semana 10: el borde 2D (``fracture_edge_2d``) no ve los contactos ENTRE cortes. Con el
+    borde real (oráculo) en test, el borde 2D deja separar solo el 35 % de los fragmentos
+    secundarios; el 3D, el 71 %. Se dilata ``dilation`` veces con 6-vecindad, dentro del hueso.
+    """
+    lab = label.astype(np.int16)
+    reg = region_of(label)
+    edge = np.zeros(lab.shape, bool)
+    for axis in range(3):
+        for step in (1, -1):
+            ln, rn = _shift3(lab, axis, step), _shift3(reg, axis, step)
+            edge |= (lab > 0) & (ln > 0) & (lab != ln) & (rn == reg)
+    if dilation > 0 and edge.any():
+        edge = ndi.binary_dilation(edge, structure=ndi.generate_binary_structure(3, 1), iterations=dilation) & (lab > 0)
+    return edge
+
+
 def region_boxes_2d(label: np.ndarray, min_box_px: float = 4.0) -> Dict[str, np.ndarray]:
     """Caja envolvente por región.
 
@@ -76,13 +106,15 @@ def region_boxes_2d(label: np.ndarray, min_box_px: float = 4.0) -> Dict[str, np.
     return {"boxes": boxes, "present": present, "ignore": ignore}
 
 
-def slice_targets(label: np.ndarray, min_box_px: float = 4.0, edge_dilation_px: int = 2) -> Dict[str, np.ndarray]:
+def slice_targets(label: np.ndarray, min_box_px: float = 4.0, edge_dilation_px: int = 2,
+                  edge: np.ndarray | None = None) -> Dict[str, np.ndarray]:
     """Todos los objetivos de un corte, listos para convertir a tensores.
 
     ``present`` es también el objetivo multi-etiqueta de la cabeza de clasificación:
     qué regiones anatómicas aparecen en el corte (los cortes vacíos dan [0, 0, 0]).
+    ``edge``: corte del borde 3D precalculado en el caché (``edge.npy``); si no hay, borde 2D.
     """
     out = region_boxes_2d(label, min_box_px)
     out["semantic"] = region_of(label).astype(np.int64)
-    out["edge"] = fracture_edge_2d(label, edge_dilation_px).astype(np.float32)
+    out["edge"] = (edge > 0).astype(np.float32) if edge is not None else fracture_edge_2d(label, edge_dilation_px).astype(np.float32)
     return out

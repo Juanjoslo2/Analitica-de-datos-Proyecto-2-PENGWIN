@@ -26,6 +26,11 @@ model:
   cbam: true                             # ablación: false
   cbam_blocks: [3, 4]                    # CBAM en C3 y C4, antes de la bifurcación hacia las 3 cabezas
   cbam_reduction: 16
+  cbam_gamma: true                       # y = x + γ·(CBAM(x) − x), γ aprendible desde 0: mide cuánto se usa CBAM
+  neck_gamma: true                       # P3 = C3 + γ·up(C4), γ desde 1: mide cuánto contexto profundo se usa
+  spatial_dropout: 0.1                   # Dropout2d tras los bloques profundos (val loss se aplanaba en ép. ~17)
+  spatial_dropout_blocks: [3, 4]         # 128 y 256 canales; los bloques 1-2 llevan bordes finos
+  seg_spatial_dropout: 0.1               # en el decodificador a stride 4 (64 canales)
   neck_channels: 128                     # P3 = C3 + up(C4)
   num_classes: 3                         # SA, coxal izq., coxal der.
   det_stride: 8                          # 39 % de cajas del sacro < 16 px [EDA §8]
@@ -39,7 +44,7 @@ loss:
   lambda_calibration_iters: 200
   seg_ce_weights: [1.0, 10.8, 8.7, 8.7]  # fondo, SA, LI, RI ∝ 1/sqrt(frecuencia) [EDA §8]
   edge_dilation_px: 2
-  edge_pos_weight: 21                    # borde = 1:446 píxeles de hueso [EDA §8]
+  edge_pos_weight: 9                     # √(hueso:borde) del objetivo REAL: borde 3D dilatado = 1:83 (antes 21, de 1:446 sin dilatar)
   focal_alpha: 0.25                      # pérdida focal del grid (~1 % de celdas positivas)
   focal_gamma: 2.0
   center_radius: 1.5                     # celdas positivas a <= 1,5 celdas del centro de la caja
@@ -73,6 +78,9 @@ postprocess:
   nms_iou: 0.5
   max_boxes_per_class: 1                 # una región aparece a lo sumo una vez por corte
   min_fragment_cm3: 0.1                  # componentes 3D menores se reasignan [EDA §6]
+  instance_method: edt                   # semillas por distancia: val 67 % de secundarios recuperados vs 2 % solo-borde [DD §10.7]
+  seed_depth_mm: 5.0                     # semilla = zona a > 5 mm del borde del núcleo (barrido en val: 2-10 mm)
+  edge_threshold: 0.2                    # P(borde) ≥ umbral sale del núcleo (val: 0,2 > 0,5)
 
 measurement:
   contact_threshold: voxel_diagonal      # d <= diagonal del vóxel => "en contacto" [EDA §7]

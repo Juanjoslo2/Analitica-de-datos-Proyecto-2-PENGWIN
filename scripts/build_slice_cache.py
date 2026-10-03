@@ -33,6 +33,8 @@ def main() -> None:
     ap.add_argument("--cache-dir", type=Path, default=None)
     ap.add_argument("--cases", nargs="*", default=None)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--edges-only", action="store_true",
+                    help="solo añade edge.npy (borde de fractura 3D) a los casos ya cacheados; no relee los .mha")
     ap.add_argument("--shard", default="0/1", help="k/n: procesa solo los casos con índice %% n == k (paralelismo)")
     args = ap.parse_args()
     cfg = load_config(args.config)
@@ -40,6 +42,16 @@ def main() -> None:
     data_dir = args.data_dir or REPO / d["raw_dir"]
     cache_dir = args.cache_dir or REPO / d["processed_dir"]
     k_shard, n_shard = (int(v) for v in args.shard.split("/"))
+
+    if args.edges_only:
+        from pengwin.data.slice_cache import add_edge_cache
+        dirs = sorted(p for p in cache_dir.iterdir() if (p / "label.npy").exists())
+        if args.cases:
+            dirs = [p for p in dirs if p.name in set(args.cases)]
+        for k, d in enumerate(dirs[k_shard::n_shard], 1):
+            n = add_edge_cache(d)
+            print(f"[{k}] {d.name}: {n} vóxeles de borde", flush=True)
+        return
 
     pairs = get_dataset_pairs(data_dir)
     if args.cases:

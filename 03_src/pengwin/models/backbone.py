@@ -17,6 +17,15 @@ y un pooling global al final. Sirve para clasificar, pero para PENGWIN le faltan
    y el número de parámetros del resto de la red no cambia.
 
 ``fundidora`` (sin residuales) queda disponible para comparar con la versión del curso.
+
+Semana 10:
+- ``cbam_gamma``: el CBAM se mezcla con la identidad mediante un γ aprendible que arranca en 0
+  (ver ``cbam.py``). El γ final dice cuánto usa la red la atención.
+- ``spatial_dropout``: Dropout2d (apaga canales completos) a la salida de los bloques
+  ``spatial_dropout_blocks``. Va solo en los bloques profundos (3 y 4, de 128 y 256 canales):
+  ahí se concentran los mapas redundantes. En los bloques 1-2 los canales son pocos y
+  codifican bordes finos que necesitan la segmentación y el borde de fractura.
+Sin esas claves en la config (checkpoints viejos), el modelo es idéntico al de la semana 9.
 """
 
 from __future__ import annotations
@@ -50,17 +59,21 @@ class ResidualBlock(nn.Module):
 class FundidoraStage(nn.Module):
     """Un bloque de FundidoraPC (+ residual y CBAM opcionales)."""
 
-    def __init__(self, c_in: int, c_out: int, residual: bool, cbam: bool, cbam_reduction: int = 16):
+    def __init__(self, c_in: int, c_out: int, residual: bool, cbam: bool, cbam_reduction: int = 16,
+                 cbam_gamma: bool = False, spatial_dropout: float = 0.0):
         super().__init__()
         self.conv = nn.Conv2d(c_in, c_out, 3, padding=1, bias=False)
         self.bn = nn.BatchNorm2d(c_out)
         self.res = ResidualBlock(c_out) if residual else nn.Identity()
-        self.cbam = CBAM(c_out, cbam_reduction) if cbam else nn.Identity()
+        self.cbam = CBAM(c_out, cbam_reduction, gamma=cbam_gamma) if cbam else nn.Identity()
         self.pool = nn.MaxPool2d(2)
+        # Dropout espacial: apaga mapas completos (los píxeles vecinos están correlacionados,
+        # así que apagar píxeles sueltos casi no regulariza). Solo actúa en model.train().
+        self.drop = nn.Dropout2d(spatial_dropout) if spatial_dropout > 0 else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.res(torch.relu(self.bn(self.conv(x))))
-        return self.cbam(self.pool(x))
+        return self.drop(self.cbam(self.pool(x)))
 
 
 class FundidoraBackbone(nn.Module):
@@ -76,11 +89,15 @@ class FundidoraBackbone(nn.Module):
         cbam: bool = True,
         cbam_blocks: Sequence[int] = (3, 4),
         cbam_reduction: int = 16,
+        cbam_gamma: bool = False,
+        spatial_dropout: float = 0.0,
+        spatial_dropout_blocks: Sequence[int] = (3, 4),
     ):
         super().__init__()
         stages, c_in = [], in_channels
         for k, c_out in enumerate(widths, start=1):
-            stages.append(FundidoraStage(c_in, c_out, residual, cbam and k in cbam_blocks, cbam_reduction))
+            stages.append(FundidoraStage(c_in, c_out, residual, cbam and k in cbam_blocks, cbam_reduction, cbam_gamma,
+                                         spatial_dropout if k in spatial_dropout_blocks else 0.0))
             c_in = c_out
         self.stages = nn.ModuleList(stages)
         self.widths = tuple(widths)
@@ -113,6 +130,9 @@ def build_backbone(model_cfg: Dict, in_channels: int = 3) -> FundidoraBackbone:
         cbam=bool(model_cfg.get("cbam", True)),
         cbam_blocks=tuple(model_cfg.get("cbam_blocks", (3, 4))),
         cbam_reduction=int(model_cfg.get("cbam_reduction", 16)),
+        cbam_gamma=bool(model_cfg.get("cbam_gamma", False)),
+        spatial_dropout=float(model_cfg.get("spatial_dropout", 0.0)),
+        spatial_dropout_blocks=tuple(model_cfg.get("spatial_dropout_blocks", (3, 4))),
     )
 
 

@@ -111,8 +111,12 @@ def save_checkpoint(path: Path, model, optimizer=None, epoch: int = 0, metrics: 
 
 
 def selection_score(metrics: Dict[str, float]) -> float:
-    """Criterio para guardar el mejor checkpoint: media de mAP@0.5, Dice de hueso y F1."""
-    vals = [metrics.get("mAP@0.50"), metrics.get("dice_hueso"), metrics.get("cls_f1_macro")]
+    """Criterio para guardar el mejor checkpoint: media de mAP@[.50:.95], Dice de hueso y F1.
+
+    Semana 10: antes usaba mAP@0.5, que se satura en ~0,98 desde la época 15 y hacía elegir
+    épocas tempranas (v2: época 22 contra 39, con 0,016 menos de mAP@[.50:.95] en test).
+    """
+    vals = [metrics.get("mAP@[.50:.95]"), metrics.get("dice_hueso"), metrics.get("cls_f1_macro")]
     vals = [v for v in vals if v is not None and not np.isnan(v)]
     return float(np.mean(vals)) if vals else 0.0
 

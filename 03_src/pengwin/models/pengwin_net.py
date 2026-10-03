@@ -34,10 +34,11 @@ class PengwinNet(nn.Module):
         self.stride = int(model_cfg.get("det_stride", 8))
         if self.stride != self.backbone.strides[2]:
             raise ValueError("det_stride debe coincidir con el stride de C3 (8)")
-        self.neck = TopDownNeck(c3, c4, neck)
+        self.neck = TopDownNeck(c3, c4, neck, gamma=bool(model_cfg.get("neck_gamma", False)))
         self.cls_head = ClassificationHead(c4, n_cls)
         self.det_head = GridDetectionHead(neck, n_cls, self.stride)
-        self.seg_head = SegmentationHead(neck, c2, c1, num_classes=n_cls + 1)
+        self.seg_head = SegmentationHead(neck, c2, c1, num_classes=n_cls + 1,
+                                         spatial_dropout=float(model_cfg.get("seg_spatial_dropout", 0.0)))
 
     def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
         c1, c2, c3, c4 = self.backbone(x)
@@ -51,6 +52,23 @@ class PengwinNet(nn.Module):
             "seg_logits": seg_logits,
             "edge_logits": edge_logits,
         }
+
+    def gammas(self) -> Dict[str, float]:
+        """γ aprendidos: cuánto usa la red cada componente (ver ``scripts/component_contribution.py``).
+
+        - residual bN: media de |γ| de la última BN del bloque residual (arranca en 0).
+        - CBAM bN: γ de la mezcla con la identidad (arranca en 0; solo con ``cbam_gamma``).
+        - cuello C4: γ del contexto profundo en P3 (arranca en 1; solo con ``neck_gamma``).
+        """
+        out = {}
+        for k, st in enumerate(self.backbone.stages, start=1):
+            if hasattr(st.res, "bn_b"):
+                out[f"residual b{k}"] = float(st.res.bn_b.weight.detach().abs().mean())
+            if getattr(st.cbam, "gamma", None) is not None:
+                out[f"CBAM b{k}"] = float(st.cbam.gamma.detach())
+        if self.neck.gamma is not None:
+            out["cuello C4"] = float(self.neck.gamma.detach())
+        return out
 
     def head_parameters(self):
         """Parámetros de cuello y cabezas (siempre desde cero)."""
