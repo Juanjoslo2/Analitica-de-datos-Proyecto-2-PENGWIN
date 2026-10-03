@@ -112,7 +112,7 @@ def load_case_cache(case_dir: Path | str, mmap: bool = True) -> Tuple[np.ndarray
     return image, label, meta
 
 
-def add_edge_cache(case_dir: Path | str, dilation: int = 2) -> int:
+def add_edge_cache(case_dir: Path | str, dilation: int = 2, name: str = "edge.npy") -> int:
     """Añade ``edge.npy`` (borde de fractura 3D) a un caso ya cacheado, sin releer el .mha.
 
     Devuelve el número de vóxeles de borde. Los cachés de la semana 9 no lo tienen.
@@ -120,15 +120,16 @@ def add_edge_cache(case_dir: Path | str, dilation: int = 2) -> int:
     case_dir = Path(case_dir)
     label = np.load(case_dir / "label.npy")
     edge = fracture_edge_3d(label, dilation).astype(np.uint8)
-    np.save(case_dir / "edge.npy", edge)
-    meta = json.loads((case_dir / "meta.json").read_text(encoding="utf-8"))
-    meta["edge_dilation"] = dilation
-    (case_dir / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    np.save(case_dir / name, edge)
+    if name == "edge.npy":
+        meta = json.loads((case_dir / "meta.json").read_text(encoding="utf-8"))
+        meta["edge_dilation"] = dilation
+        (case_dir / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     return int(edge.sum())
 
 
-def load_edge_cache(case_dir: Path | str, mmap: bool = True) -> np.ndarray | None:
-    path = Path(case_dir) / "edge.npy"
+def load_edge_cache(case_dir: Path | str, mmap: bool = True, name: str = "edge.npy") -> np.ndarray | None:
+    path = Path(case_dir) / name
     return np.load(path, mmap_mode="r" if mmap else None) if path.exists() else None
 
 

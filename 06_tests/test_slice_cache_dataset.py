@@ -88,3 +88,37 @@ def test_dataset_items(tmp_path):
     train = PengwinSlices(tmp_path / "cache", ["900"], cfg, train=True)
     a = train[0]
     assert a["image"].shape == (3, 64, 64) and json.dumps(a["case_id"])
+
+
+def test_secondary_oversampling_and_edge_file(tmp_path):
+    pytest.importorskip("torch")
+    from conftest import REPO
+    from pengwin.data.dataset import PengwinSlices
+    from pengwin.data.slice_cache import add_edge_cache
+    from pengwin.utils.config import load_config
+
+    img_p, lab_p = _write_phantom(tmp_path)
+    build_case_cache("900", img_p, lab_p, tmp_path / "cache", image_size=64, crop_margin_mm=4)
+    cfg = load_config(REPO / "configs" / "base.yaml")
+    base = PengwinSlices(tmp_path / "cache", ["900"], cfg, train=True)
+    cfg3 = {**cfg, "data": {**cfg["data"], "secondary_oversample": 3}}
+    over = PengwinSlices(tmp_path / "cache", ["900"], cfg3, train=True)
+    assert len(over) - len(base) == 2 * 4, "los 4 cortes con el fragmento 2 (z 8-11) se repiten 2 veces más"
+    assert len(PengwinSlices(tmp_path / "cache", ["900"], cfg3, train=False)) == len(
+        PengwinSlices(tmp_path / "cache", ["900"], cfg, train=False)), "en val no se sobremuestrea"
+    n = add_edge_cache(tmp_path / "cache" / "900", dilation=0, name="edge_d0.npy")
+    cfg_e = {**cfg, "data": {**cfg["data"], "edge_file": "edge_d0.npy"}}
+    ds = PengwinSlices(tmp_path / "cache", ["900"], cfg_e, train=False)
+    assert ds[ds.index.index(("900", 10))]["edge"].sum() > 0 and n > 0
+
+
+def test_cv_folds_are_disjoint_and_exclude_test():
+    from conftest import REPO
+
+    path = REPO / "reports" / "tuning" / "cv_folds.json"
+    if not path.exists():
+        pytest.skip("cv_folds.json no generado")
+    cv = json.loads(path.read_text(encoding="utf-8"))
+    flat = [c for f in cv["folds"] for c in f]
+    assert len(flat) == len(set(flat)) == 85
+    assert not set(flat) & set(cv["test_excluido"])

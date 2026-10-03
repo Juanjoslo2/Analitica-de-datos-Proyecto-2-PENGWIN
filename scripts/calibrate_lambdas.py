@@ -37,6 +37,8 @@ def main() -> None:
     ap.add_argument("--cache-dir", type=Path, default=None)
     ap.add_argument("--iters", type=int, default=None)
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--folds-file", type=Path, default=None)
+    ap.add_argument("--fold", type=int, default=None, help="calibra con los casos de train de este fold")
     args = ap.parse_args()
     cfg = load_config(args.config)
     set_seed(cfg["seed"], deterministic=False)
@@ -44,7 +46,12 @@ def main() -> None:
     iters = args.iters or cfg["loss"]["lambda_calibration_iters"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ds = PengwinSlices(cache_dir, read_split(REPO / cfg["data"]["splits"], "train"), cfg, train=True)
+    if args.folds_file is not None:
+        folds = json.loads(args.folds_file.read_text(encoding="utf-8"))["folds"]
+        cases = sorted(c for k, f in enumerate(folds) if k != args.fold for c in f)
+    else:
+        cases = read_split(REPO / cfg["data"]["splits"], "train")
+    ds = PengwinSlices(cache_dir, cases, cfg, train=True)
     g = torch.Generator().manual_seed(cfg["seed"])
     loader = torch.utils.data.DataLoader(ds, batch_size=cfg["train"]["batch_size"], shuffle=True, generator=g,
                                          num_workers=cfg["train"]["num_workers"], worker_init_fn=seed_worker,

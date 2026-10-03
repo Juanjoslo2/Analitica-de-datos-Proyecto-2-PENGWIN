@@ -7,6 +7,7 @@ Uso:
     python scripts/train.py --config configs/ablation_no_cbam.yaml --name sin_cbam
     python scripts/train.py --name rapido --epochs 3 --max-steps 300         # humo / semana 9
     python scripts/train.py --name sens_det_x2 --lambdas '{"cls":1,"det":2,"seg":1}'
+    python scripts/train.py --name cv_base_f0 --folds-file reports/tuning/cv_folds.json --fold 0   # validación cruzada
 
 Salida:
     checkpoints/<name>/best.pth, last.pth       (no se versionan: GitHub Releases)
@@ -54,6 +55,9 @@ def main() -> None:
     ap.add_argument("--max-steps", type=int, default=None, help="pasos máximos por época (corridas cortas)")
     ap.add_argument("--lambdas", type=str, default=None, help='JSON, p. ej. \'{"cls":1,"det":2,"seg":1}\'')
     ap.add_argument("--deterministic", action="store_true", help="cuDNN determinista (más lento)")
+    ap.add_argument("--folds-file", type=Path, default=None, help="reports/tuning/cv_folds.json (scripts/cv_folds.py)")
+    ap.add_argument("--fold", type=int, default=None, help="con --folds-file: este fold es val y el resto train")
+    ap.add_argument("--lambdas-file", type=Path, default=None, help="JSON de calibrate_lambdas.py (en vez del de la config)")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -64,13 +68,24 @@ def main() -> None:
     if not args.deterministic:
         torch.backends.cudnn.benchmark = True
 
-    splits = REPO / cfg["data"]["splits"]
-    train_ds = PengwinSlices(cache_dir, read_split(splits, "train"), cfg, train=True)
-    val_ds = PengwinSlices(cache_dir, read_split(splits, "val"), cfg, train=False)
+    if args.folds_file is not None:
+        folds = json.loads(args.folds_file.read_text(encoding="utf-8"))["folds"]
+        val_cases = folds[args.fold]
+        train_cases = sorted(c for k, f in enumerate(folds) if k != args.fold for c in f)
+    else:
+        splits = REPO / cfg["data"]["splits"]
+        train_cases, val_cases = read_split(splits, "train"), read_split(splits, "val")
+    train_ds = PengwinSlices(cache_dir, train_cases, cfg, train=True)
+    val_ds = PengwinSlices(cache_dir, val_cases, cfg, train=False)
     train_dl, val_dl = loader(train_ds, cfg, True), loader(val_ds, cfg, False)
     print(f"train: {len(train_ds)} cortes | val: {len(val_ds)} cortes | {device}", flush=True)
 
-    lambdas = json.loads(args.lambdas) if args.lambdas else load_lambdas(cfg["loss"], REPO)
+    if args.lambdas:
+        lambdas = json.loads(args.lambdas)
+    elif args.lambdas_file:
+        lambdas = json.loads(args.lambdas_file.read_text(encoding="utf-8"))["lambdas"]
+    else:
+        lambdas = load_lambdas(cfg["loss"], REPO)
     print(f"λ = {lambdas or 'sin calibrar (1, 1, 1): corre scripts/calibrate_lambdas.py'}")
     model = build_model(cfg).to(device)
     print("parámetros:", count_parameters(model))

@@ -35,6 +35,8 @@ def main() -> None:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--edges-only", action="store_true",
                     help="solo añade edge.npy (borde de fractura 3D) a los casos ya cacheados; no relee los .mha")
+    ap.add_argument("--edge-dilation", type=int, default=2, help="con --edges-only: iteraciones de dilatación 3D")
+    ap.add_argument("--edge-file", default="edge.npy", help="con --edges-only: nombre del archivo (p. ej. edge_d3.npy)")
     ap.add_argument("--shard", default="0/1", help="k/n: procesa solo los casos con índice %% n == k (paralelismo)")
     args = ap.parse_args()
     cfg = load_config(args.config)
@@ -49,7 +51,7 @@ def main() -> None:
         if args.cases:
             dirs = [p for p in dirs if p.name in set(args.cases)]
         for k, d in enumerate(dirs[k_shard::n_shard], 1):
-            n = add_edge_cache(d)
+            n = add_edge_cache(d, args.edge_dilation, args.edge_file)
             print(f"[{k}] {d.name}: {n} vóxeles de borde", flush=True)
         return
 
