@@ -1,11 +1,16 @@
-"""Fixtures compartidas por los tests."""
+"""Fixtures compartidas por los tests.
 
+Los datos se buscan en ``01_data``; la variable de entorno PENGWIN_DATA_DIR permite tenerlos
+fuera del repositorio (p. ej. fuera de OneDrive).
+"""
+
+import os
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-DATA_DIR = REPO / "01_data"
+DATA_DIR = Path(os.environ.get("PENGWIN_DATA_DIR", REPO / "01_data"))
 
 
 @pytest.fixture(scope="session")
