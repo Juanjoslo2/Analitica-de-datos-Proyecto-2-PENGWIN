@@ -23,7 +23,7 @@ from pengwin.data.targets import REGION_NAMES
 from pengwin.detection.grid import decode
 from pengwin.evaluation.det_metrics import DetectionEvaluator, SegmentationEvaluator
 
-TENSOR_KEYS = ("image", "semantic", "edge", "boxes", "present", "ignore")
+TENSOR_KEYS = ("image", "semantic", "edge", "core3", "dist", "boxes", "present", "ignore")
 
 
 def to_device(batch: Dict, device: torch.device) -> Dict:

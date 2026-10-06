@@ -11,6 +11,7 @@ Uso:
         --cache-dir D:/PENGWIN/data_processed --data-dir D:/PENGWIN/01_data
     ... --cases 001 002          # solo algunos casos
     ... --save-dir D:/PENGWIN/pred   # guarda la predicción de cada caso como .mha (visualizador 3)
+    ... --config configs/tuned.yaml  # usa el posproceso de otra config (p. ej. el ajustado por CV)
 
 Salida en reports/fragments/:
     <modelo>_<split>_fragmentos.csv   una fila por fragmento GT (dice, iou, recuperado, volumen)
@@ -35,9 +36,9 @@ sys.path.insert(0, str(REPO / "03_src"))
 from pengwin.data.data_loader import get_dataset_pairs, load_and_standardize_mha  # noqa: E402
 from pengwin.data.dataset import read_split  # noqa: E402
 from pengwin.evaluation.fragment_metrics import distance_comparison, match_fragments, summarize  # noqa: E402
-from pengwin.inference.volume import predict_case, to_native  # noqa: E402
+from pengwin.inference.volume import TTA_DEFAULT, predict_case, to_native  # noqa: E402
 from pengwin.models.pengwin_net import PengwinNet  # noqa: E402
-from pengwin.postprocess.instances import separate_instances  # noqa: E402
+from pengwin.postprocess.instances import instance_kwargs, resolve_postprocess, separate_instances  # noqa: E402
 
 
 def main() -> None:
@@ -48,21 +49,30 @@ def main() -> None:
     ap.add_argument("--split", default="test", choices=["train", "val", "test"])
     ap.add_argument("--cases", nargs="*", default=None)
     ap.add_argument("--save-dir", type=Path, default=None)
-    ap.add_argument("--method", default=None, choices=["edge", "edt"], help="por defecto, el de la config")
+    ap.add_argument("--config", type=Path, default=REPO / "configs" / "base.yaml",
+                    help="de dónde sale el bloque postprocess (el checkpoint solo aporta lo que no esté ahí)")
+    ap.add_argument("--method", default=None, choices=["edge", "edt", "core3", "dist"], help="por defecto, el de la config")
     ap.add_argument("--seed-depth-mm", type=float, default=None)
     ap.add_argument("--edge-threshold", type=float, default=None)
+    ap.add_argument("--seed-min-cm3", type=float, default=None)
+    ap.add_argument("--edge-weight", type=float, default=None)
+    ap.add_argument("--core-threshold", type=float, default=None, help="method=core3: P(núcleo) > umbral")
+    ap.add_argument("--core-seed-depth-mm", type=float, default=None, help="method=core3: erosión extra del núcleo")
     ap.add_argument("--tag", default="", help="sufijo del nombre del reporte (p. ej. _edt)")
+    ap.add_argument("--tta", action="store_true", help="promedia región y borde con TTA_DEFAULT (volume.py)")
     args = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ck = torch.load(args.ckpt, map_location="cpu", weights_only=False)
     cfg = ck["cfg"]
-    # El posproceso sale de la config ACTUAL del repo (se ajusta sin reentrenar), no de la del checkpoint
+    # El posproceso sale de la config ACTUAL del repo (se ajusta sin reentrenar), no de la del
+    # checkpoint; los argumentos de la CLI mandan sobre los dos.
     from pengwin.utils.config import load_config
-    pp = {**cfg.get("postprocess", {}), **load_config(REPO / "configs" / "base.yaml").get("postprocess", {})}
-    if args.edge_threshold is not None:
-        pp["edge_threshold"] = args.edge_threshold
-    method = args.method or pp.get("instance_method", "edge")
-    depth = args.seed_depth_mm if args.seed_depth_mm is not None else pp.get("seed_depth_mm", 4.0)
+    pp = resolve_postprocess(cfg.get("postprocess"), load_config(args.config).get("postprocess"),
+                             {"instance_method": args.method, "edge_threshold": args.edge_threshold,
+                              "seed_depth_mm": args.seed_depth_mm, "seed_min_cm3": args.seed_min_cm3,
+                              "edge_weight": args.edge_weight, "core_threshold": args.core_threshold,
+                              "core_seed_depth_mm": args.core_seed_depth_mm})
+    print("posproceso:", pp, flush=True)
     model = PengwinNet(cfg["model"]).to(device).eval()
     model.load_state_dict(ck["model"])
     # Solo se necesitan las etiquetas nativas (la imagen sale del caché): basta con PENGWIN_CT_train_labels
@@ -73,11 +83,13 @@ def main() -> None:
     frag_rows, dist_rows, per_case = [], [], {}
     for k, cid in enumerate(cases, 1):
         t0 = time.time()
-        pred = predict_case(model, args.cache_dir, cid, cfg, device)
+        pred = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_DEFAULT if args.tta else None)
         meta = pred["meta"]
         grid_spacing = (meta["spacing_zyx"][0], meta["pixel_mm"], meta["pixel_mm"])
-        lab_grid = separate_instances(pred["semantic"], pred["edge"], grid_spacing, pp.get("edge_threshold", 0.5),
-                                      pp.get("min_fragment_cm3", 0.1), method=method, seed_depth_mm=depth)
+        # ``core`` solo existe con model.seg_outputs: [..., core3] y ``dist`` con [..., dist];
+        # sin ellos, method="core3"/"dist" caen al núcleo derivado del borde (ver instances.py).
+        lab_grid = separate_instances(pred["semantic"], pred["edge"], grid_spacing,
+                                      core=pred.get("core"), dist=pred.get("dist"), **instance_kwargs(pp))
         lab_pred = to_native(lab_grid, meta, order=0)
         gt, spacing, _ = load_and_standardize_mha(pairs[cid]["label_path"], is_label=True)
         fr = match_fragments(gt, lab_pred, spacing)
@@ -104,7 +116,7 @@ def main() -> None:
     pd.DataFrame(dist_rows).to_csv(out_dir / f"{name}_distancias.csv", index=False)
     total = summarize(frag_rows, dist_rows)
     (out_dir / f"{name}.json").write_text(json.dumps({"checkpoint": str(args.ckpt), "split": args.split,
-                                                      "postproceso": {"metodo": method, "seed_depth_mm": depth, **{k: pp.get(k) for k in ("edge_threshold", "min_fragment_cm3")}},
+                                                      "postproceso": pp,
                                                       "global": total, "por_caso": per_case}, indent=1), encoding="utf-8")
     print("\nResumen", name)
     print(pd.Series(total).round(3).to_string())

@@ -11,6 +11,10 @@ Convenciones [DD §2-3]:
     ignorar  cajas con lado < ``min_box_px``: no son positivo ni negativo
     borde    píxeles de hueso con un 4-vecino de OTRO fragmento de la MISMA región
              (superficie de fractura), dilatado ``dilation_px`` dentro del hueso
+    núcleo   hueso que NO es borde: el interior del fragmento (representación
+             núcleo/borde del ganador de PENGWIN 2024, ver ``core_edge_target``)
+    dist     distancia en mm de cada vóxel de hueso a la superficie de fractura más cercana,
+             recortada a ``dist_max_mm``; 0 fuera del hueso (ver ``fracture_distance_3d``) [F2B2]
 """
 
 from __future__ import annotations
@@ -22,6 +26,12 @@ from scipy import ndimage as ndi
 
 NUM_REGIONS = 3
 REGION_NAMES = ("SA", "LI", "RI")
+CORE3_NAMES = ("fondo", "nucleo", "borde")      # clases 0/1/2 de ``core_edge_target``
+
+# [F2B2] Mapa de distancia a la superficie de fractura.
+DIST_MAX_MM = 8.0          # recorte por defecto (``loss.dist_max_mm``): más lejos no aporta nada
+DIST_MM_PER_LEVEL = 0.1    # cuantización uint8 del caché y del .npz: 1 nivel = 0,1 mm (0..25,5 mm)
+DIST_CACHE_MAX_MM = 255 * DIST_MM_PER_LEVEL
 
 
 def region_of(label: np.ndarray) -> np.ndarray:
@@ -84,6 +94,80 @@ def fracture_edge_3d(label: np.ndarray, dilation: int = 2) -> np.ndarray:
     return edge
 
 
+def core_edge_target(label: np.ndarray, edge: np.ndarray | None = None, dilation_px: int = 2) -> np.ndarray:
+    """Mapa de 3 clases **núcleo/borde**: 0 fondo, 1 núcleo, 2 borde de fractura [F2B1].
+
+    El borde es la superficie de contacto entre fragmentos distintos del MISMO hueso
+    (``fracture_edge_2d`` / ``fracture_edge_3d``, dilatada ``dilation_px``); el núcleo es el
+    resto del hueso. La interfaz entre REGIONES (articulación sacroilíaca) no es borde: ya la
+    separa la semántica de 4 clases.
+
+    ``edge``: borde ya calculado (p. ej. el corte de ``edge.npy``, borde 3D del caché, cuya
+    dilatación se elige con ``data.edge_file``); si no se pasa, se calcula del propio ``label``
+    con ``dilation_px``. Acepta un corte (H, W) o un volumen (Z, H, W).
+    """
+    bone = label > 0
+    if edge is None:
+        edge = fracture_edge_3d(label, dilation_px) if label.ndim == 3 else fracture_edge_2d(label, dilation_px)
+    e = (edge > 0) & bone                       # la dilatación del caché ya está dentro del hueso
+    return np.where(e, 2, np.where(bone, 1, 0)).astype(np.int64)
+
+
+def fracture_distance_3d(label: np.ndarray, spacing_zyx, max_mm: float = DIST_CACHE_MAX_MM,
+                         surface: np.ndarray | None = None) -> np.ndarray:
+    """Distancia en mm de cada vóxel de hueso a la superficie de fractura, recortada a ``max_mm`` [F2B2].
+
+    Objetivo **denso**: el borde binario dilatado es 1 vóxel de cada 83 del hueso, y por eso la
+    cabeza de borde solo cubre el 19 % de la superficie de fractura (recall 0,193). Aquí cada
+    vóxel de hueso tiene valor, así que no hay desbalance que compensar con ``pos_weight``, y en
+    inferencia el núcleo sale de la operación que el oráculo demuestra que funciona:
+    ``núcleo = distancia > umbral`` (con el GT: Dice por fragmento 0,9952 a 1,5 mm de erosión).
+
+    - La superficie es la de ``fracture_edge_3d`` **sin dilatar**: contacto entre fragmentos
+      distintos del MISMO hueso. La interfaz entre regiones (articulación sacroilíaca) no es
+      fractura. Sin dilatación el 0 queda exactamente en el contacto, así que ``seed_depth_mm``
+      del posproceso se lee directamente en mm desde la fractura.
+    - **Una EDT por región**: cada vóxel mide la distancia a la fractura de SU PROPIO hueso. Con
+      una sola EDT global, la fractura del sacro acerca a 0 los vóxeles del coxal que están a
+      pocos mm al otro lado de la articulación (la EDT es euclídea, no geodésica) y metería un
+      valle falso en un hueso sano. El posproceso ya trabaja región por región.
+    - ``spacing_zyx`` en mm (dz, dy, dx): se mide con el spacing, como pide el enunciado §3.3.
+    - Fuera del hueso vale 0. Una región sin fractura queda entera en ``max_mm``
+      (``distance_transform_edt`` de un arreglo sin ceros devuelve basura: hay que cortocircuitar).
+    - Solo 3D: la distancia dentro de un corte no ve las fracturas casi axiales, que se cierran
+      entre cortes (el mismo motivo por el que el borde pasó de 2D a 3D en la semana 10, §10.3).
+    """
+    if label.ndim != 3:
+        raise ValueError("fracture_distance_3d necesita un volumen (Z, H, W): la distancia es 3D")
+    if surface is None:
+        surface = fracture_edge_3d(label, dilation=0)
+    s = (surface > 0) & (label > 0)
+    reg = region_of(label)
+    out = np.zeros(label.shape, np.float32)
+    for r in range(1, NUM_REGIONS + 1):
+        m = reg == r
+        if not m.any():
+            continue
+        sr = s & m
+        if not sr.any():                            # región sin fractura: toda saturada
+            out[m] = max_mm
+            continue
+        d = ndi.distance_transform_edt(~sr, sampling=spacing_zyx)
+        out[m] = np.minimum(d[m], max_mm)
+    return out
+
+
+def dist_target(dist_mm: np.ndarray, label: np.ndarray, dist_max_mm: float = DIST_MAX_MM) -> np.ndarray:
+    """Objetivo de regresión: la distancia en mm normalizada a [0, 1] y enmascarada al hueso [F2B2].
+
+    Se normaliza dividiendo por ``dist_max_mm`` porque la salida es ``sigmoid(dist_logits)`` (acotada
+    a [0, 1] por construcción) y porque el término ``seg`` suma CE + Dice, ambos O(1): una distancia
+    en mm (0..8) dominaría esa suma y los λ, que balancean ENTRE términos, no podrían corregirlo.
+    """
+    d = np.clip(np.asarray(dist_mm, np.float32) / float(dist_max_mm), 0.0, 1.0)
+    return (d * (label > 0)).astype(np.float32)
+
+
 def region_boxes_2d(label: np.ndarray, min_box_px: float = 4.0) -> Dict[str, np.ndarray]:
     """Caja envolvente por región.
 
@@ -107,14 +191,24 @@ def region_boxes_2d(label: np.ndarray, min_box_px: float = 4.0) -> Dict[str, np.
 
 
 def slice_targets(label: np.ndarray, min_box_px: float = 4.0, edge_dilation_px: int = 2,
-                  edge: np.ndarray | None = None) -> Dict[str, np.ndarray]:
+                  edge: np.ndarray | None = None, dist_mm: np.ndarray | None = None,
+                  dist_max_mm: float = DIST_MAX_MM) -> Dict[str, np.ndarray]:
     """Todos los objetivos de un corte, listos para convertir a tensores.
 
     ``present`` es también el objetivo multi-etiqueta de la cabeza de clasificación:
     qué regiones anatómicas aparecen en el corte (los cortes vacíos dan [0, 0, 0]).
     ``edge``: corte del borde 3D precalculado en el caché (``edge.npy``); si no hay, borde 2D.
+    ``core3`` sale del MISMO borde (no se cachea aparte: es una función de ``label`` y ``edge``,
+    los dos ya disponibles y ya aumentados).
+    ``dist_mm``: corte de la distancia 3D a la fractura en mm (``dist.npy`` del caché, ya
+    aumentado); solo si se pasa aparece la clave ``dist`` (normalizada a [0, 1]) [F2B2]. No se
+    deriva aquí porque la distancia es 3D y este corte no ve los cortes vecinos.
     """
     out = region_boxes_2d(label, min_box_px)
     out["semantic"] = region_of(label).astype(np.int64)
-    out["edge"] = (edge > 0).astype(np.float32) if edge is not None else fracture_edge_2d(label, edge_dilation_px).astype(np.float32)
+    e = (edge > 0) if edge is not None else fracture_edge_2d(label, edge_dilation_px)
+    out["edge"] = e.astype(np.float32)
+    out["core3"] = core_edge_target(label, e)
+    if dist_mm is not None:
+        out["dist"] = dist_target(dist_mm, label, dist_max_mm)
     return out

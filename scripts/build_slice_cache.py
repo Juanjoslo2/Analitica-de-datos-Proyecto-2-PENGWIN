@@ -37,6 +37,11 @@ def main() -> None:
                     help="solo añade edge.npy (borde de fractura 3D) a los casos ya cacheados; no relee los .mha")
     ap.add_argument("--edge-dilation", type=int, default=2, help="con --edges-only: iteraciones de dilatación 3D")
     ap.add_argument("--edge-file", default="edge.npy", help="con --edges-only: nombre del archivo (p. ej. edge_d3.npy)")
+    ap.add_argument("--dist-only", action="store_true",
+                    help="solo añade dist.npy (distancia 3D a la superficie de fractura, 0,1 mm por nivel) "
+                         "a los casos ya cacheados; no relee los .mha [F2B2]")
+    ap.add_argument("--dist-file", default="dist.npy", help="con --dist-only: nombre del archivo")
+    ap.add_argument("--skip-existing", action="store_true", help="con --dist-only: no recalcula lo que ya está")
     ap.add_argument("--shard", default="0/1", help="k/n: procesa solo los casos con índice %% n == k (paralelismo)")
     args = ap.parse_args()
     cfg = load_config(args.config)
@@ -44,6 +49,17 @@ def main() -> None:
     data_dir = args.data_dir or REPO / d["raw_dir"]
     cache_dir = args.cache_dir or REPO / d["processed_dir"]
     k_shard, n_shard = (int(v) for v in args.shard.split("/"))
+
+    if args.dist_only:
+        from pengwin.data.slice_cache import add_dist_cache
+        dirs = sorted(p for p in cache_dir.iterdir() if (p / "label.npy").exists())
+        if args.cases:
+            dirs = [p for p in dirs if p.name in set(args.cases)]
+        for k, c in enumerate(dirs[k_shard::n_shard], 1):
+            existia = args.skip_existing and (c / args.dist_file).exists()
+            mx = add_dist_cache(c, args.dist_file, skip_existing=args.skip_existing)
+            print(f"[{k}] {c.name}: {'ya estaba' if existia else f'distancia máx. {mx:.1f} mm'}", flush=True)
+        return
 
     if args.edges_only:
         from pengwin.data.slice_cache import add_edge_cache

@@ -6,6 +6,7 @@ Caché de cortes listos para el modelo [EDA §2-4, DD §1]. Cada caso se lee UNA
     image.npy  uint8 (Z, 256, 256)  ventana L400/W1800 cuantizada (≈ 7 HU por nivel)
     label.npy  uint8 (Z, 256, 256)  ids PENGWIN 0..30, vecino más cercano (no inventa ids)
     edge.npy   uint8 (Z, 256, 256)  borde de fractura 3D dilatado (objetivo de la salida de borde)
+    dist.npy   uint8 (Z, 256, 256)  distancia a la superficie de fractura, 0,1 mm por nivel [F2B2]
     meta.json  spacing nativo, recorte óseo, mm/px efectivo, Δ de contexto, cortes con hueso
 
 Los .npy van sin comprimir para abrirlos con ``mmap_mode="r"``: el ``Dataset`` lee solo
@@ -28,7 +29,7 @@ from scipy import ndimage as ndi
 
 from pengwin.data.data_loader import apply_bone_window, load_and_standardize_mha
 from pengwin.data.preprocessing import HU_AIR, BodyCrop, apply_crop, compute_bone_crop
-from pengwin.data.targets import fracture_edge_3d
+from pengwin.data.targets import DIST_CACHE_MAX_MM, DIST_MM_PER_LEVEL, fracture_distance_3d, fracture_edge_3d
 
 CACHE_VERSION = 1
 EDGE_DILATION = 2     # iteraciones de dilatación 3D del borde (oráculo en test: 71 % de secundarios separables)
@@ -49,6 +50,28 @@ def _resize_stack(stack: np.ndarray, out_size: int, order: int) -> np.ndarray:
 def context_offset(dz_mm: float, context_mm: float) -> int:
     """Δ en cortes para la entrada 2.5D (z−Δ, z, z+Δ): Δ = round(context_mm / dz), mínimo 1."""
     return max(1, int(round(context_mm / dz_mm)))
+
+
+def model_spacing_zyx(meta: Dict) -> Tuple[float, float, float]:
+    """Spacing en mm de la grilla del modelo (Z, 256, 256): z no se remuestrea, el plano sí."""
+    return (float(meta["spacing_zyx"][0]), float(meta["pixel_mm"]), float(meta["pixel_mm"]))
+
+
+def _quantize_dist(dist_mm: np.ndarray) -> np.ndarray:
+    """mm -> uint8 con ``DIST_MM_PER_LEVEL`` mm por nivel (0..25,5 mm) [F2B2].
+
+    Se guarda en mm, no normalizado a ``loss.dist_max_mm``, para que cambiar ese recorte
+    (≤ 25,5 mm) no obligue a reconstruir el caché: el objetivo se normaliza al vuelo.
+    """
+    return np.round(np.clip(dist_mm, 0.0, DIST_CACHE_MAX_MM) / DIST_MM_PER_LEVEL).astype(np.uint8)
+
+
+def _save_atomic(path: Path, arr: np.ndarray) -> None:
+    """Escribe un .npy por archivo temporal + rename: dos carriles de la cola pueden pedir el
+    mismo archivo a la vez y un .npy a medio escribir rompería el entrenamiento."""
+    tmp = path.with_suffix(".tmp.npy")
+    np.save(tmp, arr)
+    tmp.replace(path)
 
 
 def build_case_cache(
@@ -92,7 +115,9 @@ def build_case_cache(
         lab = _resize_stack(apply_crop(lab, crop, fill=0), image_size, order=0)
         np.save(out / "label.npy", lab)
         np.save(out / "edge.npy", fracture_edge_3d(lab, EDGE_DILATION).astype(np.uint8))
+        _save_atomic(out / "dist.npy", _quantize_dist(fracture_distance_3d(lab, model_spacing_zyx(meta))))
         meta["edge_dilation"] = EDGE_DILATION
+        meta["dist_mm_per_level"] = DIST_MM_PER_LEVEL
         meta["bone_slices"] = np.nonzero(lab.reshape(lab.shape[0], -1).max(1) > 0)[0].tolist()
         meta["labels_present"] = [int(v) for v in np.unique(lab) if v > 0]
 
@@ -129,6 +154,31 @@ def add_edge_cache(case_dir: Path | str, dilation: int = 2, name: str = "edge.np
 
 
 def load_edge_cache(case_dir: Path | str, mmap: bool = True, name: str = "edge.npy") -> np.ndarray | None:
+    path = Path(case_dir) / name
+    return np.load(path, mmap_mode="r" if mmap else None) if path.exists() else None
+
+
+def add_dist_cache(case_dir: Path | str, name: str = "dist.npy", skip_existing: bool = False) -> float:
+    """Añade ``dist.npy`` (distancia 3D a la superficie de fractura) a un caso ya cacheado [F2B2].
+
+    No relee el .mha: la distancia es función de ``label.npy`` y del spacing de la grilla del
+    modelo. Devuelve la distancia máxima en mm encontrada en el hueso (0 si el caso ya estaba).
+    """
+    case_dir = Path(case_dir)
+    if skip_existing and (case_dir / name).exists():
+        return 0.0
+    meta = json.loads((case_dir / "meta.json").read_text(encoding="utf-8"))
+    label = np.load(case_dir / "label.npy")
+    d = fracture_distance_3d(label, model_spacing_zyx(meta))
+    _save_atomic(case_dir / name, _quantize_dist(d))
+    if name == "dist.npy" and meta.get("dist_mm_per_level") != DIST_MM_PER_LEVEL:
+        meta["dist_mm_per_level"] = DIST_MM_PER_LEVEL
+        (case_dir / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    return float(d.max())
+
+
+def load_dist_cache(case_dir: Path | str, mmap: bool = True, name: str = "dist.npy") -> np.ndarray | None:
+    """``dist.npy`` en uint8 (``DIST_MM_PER_LEVEL`` mm por nivel) o None si el caso no lo tiene."""
     path = Path(case_dir) / name
     return np.load(path, mmap_mode="r" if mmap else None) if path.exists() else None
 
