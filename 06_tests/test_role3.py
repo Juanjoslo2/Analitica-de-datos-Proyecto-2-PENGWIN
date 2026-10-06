@@ -191,3 +191,9 @@ def test_la_config_de_posproceso_conoce_role():
     assert PP_DEFAULTS["role_smooth_mm"] == 0.0
     kw = instance_kwargs(resolve_postprocess({"instance_method": "role", "role_seed_depth_mm": 2.0}))
     assert kw["method"] == "role" and kw["role_seed_depth_mm"] == 2.0 and kw["role_threshold"] == 0.5
+
+
+def test_role3_viaja_al_dispositivo_con_el_resto_del_lote():
+    """En CPU no se nota; en GPU la pérdida fallaba porque ``role3`` se quedaba en CPU."""
+    from pengwin.training.engine import TENSOR_KEYS
+    assert "role3" in TENSOR_KEYS
