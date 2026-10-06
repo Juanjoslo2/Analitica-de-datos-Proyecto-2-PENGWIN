@@ -48,24 +48,23 @@ def main() -> None:
             if csv.exists():
                 fila.update(mejor(csv, metodo))
         filas.append(fila)
-    if not filas:
-        print("sin corridas terminadas")
-        return
-    df = pd.DataFrame(filas)
-    df.to_csv(TUN / "RESUMEN.csv", index=False)
     pd.set_option("display.width", 250)
     pd.set_option("display.max_columns", 40)
-    a = [c for c in ["corrida", "ep", "s/ep", "edge_dice", "papel_sec", "mAP", "IoUcaja", "DiceReg", "F1", "AUC"] if c in df]
-    print(df[a].round(4).to_string(index=False))
+    df = pd.DataFrame(filas)
+    if filas:
+        df.to_csv(TUN / "RESUMEN.csv", index=False)
+        a = [c for c in ["corrida", "ep", "s/ep", "edge_dice", "papel_sec", "mAP", "IoUcaja", "DiceReg", "F1", "AUC"] if c in df]
+        print(df[a].round(4).to_string(index=False))
+    else:
+        print("sin corridas terminadas")
     for metodo in PARAMS:
         cols = [c for c in df.columns if c.startswith(metodo + "_")]
         if cols:
             print(f"\n-- posproceso {metodo} (mejor combinación de cada corrida)")
             print(df[df[f"{metodo}_dice"].notna()][["corrida"] + cols].round(4).to_string(index=False))
-    orac = TUN / "oraculo_role.json"
-    if orac.exists():
+    for orac in sorted(TUN.glob("oraculo_role*.json")):
         r = pd.DataFrame(json.loads(orac.read_text(encoding="utf-8"))["resumen"])
-        print("\n-- oráculo role (GT):")
+        print(f"\n-- oráculo role (GT), {orac.name}:")
         print(r[["drop", "role_smooth_mm", "role_seed_depth_mm", "dice_fragmento", "iou_fragmento", "dice_principal", "dice_secundario",
                  "recuperados_secundarios_%"]].round(4).to_string(index=False))
 
