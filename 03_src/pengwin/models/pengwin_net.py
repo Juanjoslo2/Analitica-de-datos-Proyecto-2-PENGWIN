@@ -11,6 +11,14 @@ Modelo multitarea completo: backbone compartido (FundidoraPC extendida + CBAM) �
         │                                                      det_ltrb   (B, 3, 4, 32, 32)
         └─ P3 + C2 + C1 ───────────────► SegmentationHead    → seg_logits (B, 4, 256, 256)
                                                                edge_logits (B, 1, 256, 256)
+                                                               core_logits (B, 3, 256, 256)*
+                                                               dist_logits (B, 1, 256, 256)**
+
+(*) solo con ``model.seg_outputs: [semantic4, core3]`` [F2B1]; (**) solo con
+``model.seg_outputs: [semantic4, dist]`` [F2B2]. Las salidas de la cabeza de segmentación las
+elige ``model.seg_outputs``; ``cls_logits``, ``det_scores`` y ``det_ltrb`` no cambian nunca.
+Si no hay cabeza de borde binaria, ``edge_logits`` se deriva de ``core_logits`` o de
+``dist_logits`` (ver ``SegmentationHead``).
 """
 
 from __future__ import annotations
@@ -21,7 +29,9 @@ import torch
 import torch.nn as nn
 
 from pengwin.models.backbone import build_backbone, load_fundidora_weights
-from pengwin.models.heads import ClassificationHead, GridDetectionHead, SegmentationHead, TopDownNeck
+from pengwin.models.heads import (
+    DEFAULT_SEG_OUTPUTS, ClassificationHead, GridDetectionHead, SegmentationHead, TopDownNeck,
+)
 
 
 class PengwinNet(nn.Module):
@@ -37,21 +47,22 @@ class PengwinNet(nn.Module):
         self.neck = TopDownNeck(c3, c4, neck, gamma=bool(model_cfg.get("neck_gamma", False)))
         self.cls_head = ClassificationHead(c4, n_cls)
         self.det_head = GridDetectionHead(neck, n_cls, self.stride)
+        self.seg_outputs = tuple(model_cfg.get("seg_outputs", DEFAULT_SEG_OUTPUTS) or DEFAULT_SEG_OUTPUTS)
         self.seg_head = SegmentationHead(neck, c2, c1, num_classes=n_cls + 1,
-                                         spatial_dropout=float(model_cfg.get("seg_spatial_dropout", 0.0)))
+                                         spatial_dropout=float(model_cfg.get("seg_spatial_dropout", 0.0)),
+                                         outputs=self.seg_outputs)
 
     def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
         c1, c2, c3, c4 = self.backbone(x)
         p3 = self.neck(c3, c4)
         det_scores, det_ltrb = self.det_head(p3)
-        seg_logits, edge_logits = self.seg_head(p3, c2, c1, x.shape[-2:])
-        return {
+        out = {
             "cls_logits": self.cls_head(c4),
             "det_scores": det_scores,
             "det_ltrb": det_ltrb,
-            "seg_logits": seg_logits,
-            "edge_logits": edge_logits,
         }
+        out.update(self.seg_head(p3, c2, c1, x.shape[-2:]))
+        return out
 
     def gammas(self) -> Dict[str, float]:
         """γ aprendidos: cuánto usa la red cada componente (ver ``scripts/component_contribution.py``).
