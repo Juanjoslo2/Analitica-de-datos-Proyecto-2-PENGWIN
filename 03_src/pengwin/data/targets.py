@@ -113,6 +113,17 @@ def core_edge_target(label: np.ndarray, edge: np.ndarray | None = None, dilation
     return np.where(e, 2, np.where(bone, 1, 0)).astype(np.int64)
 
 
+def role_target(label: np.ndarray) -> np.ndarray:
+    """Papel de cada vóxel dentro de su hueso: 0 fondo, 1 fragmento principal, 2 secundario [y4xul].
+
+    En PENGWIN el principal de cada región es la etiqueta 1 / 11 / 21 (coincide con el de mayor
+    volumen en 300/300 regiones, EDA §1); el resto (2-10, 12-20, 22-30) son secundarios. No
+    necesita el caché de borde ni los cortes vecinos: es una función del propio ``label``.
+    """
+    lab = label.astype(np.int16)
+    return np.where(lab == 0, 0, np.where((lab - 1) % 10 == 0, 1, 2)).astype(np.int64)
+
+
 def fracture_distance_3d(label: np.ndarray, spacing_zyx, max_mm: float = DIST_CACHE_MAX_MM,
                          surface: np.ndarray | None = None) -> np.ndarray:
     """Distancia en mm de cada vóxel de hueso a la superficie de fractura, recortada a ``max_mm`` [F2B2].
@@ -209,6 +220,7 @@ def slice_targets(label: np.ndarray, min_box_px: float = 4.0, edge_dilation_px: 
     e = (edge > 0) if edge is not None else fracture_edge_2d(label, edge_dilation_px)
     out["edge"] = e.astype(np.float32)
     out["core3"] = core_edge_target(label, e)
+    out["role3"] = role_target(label)
     if dist_mm is not None:
         out["dist"] = dist_target(dist_mm, label, dist_max_mm)
     return out

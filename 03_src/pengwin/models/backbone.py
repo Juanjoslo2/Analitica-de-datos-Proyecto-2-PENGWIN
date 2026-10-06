@@ -32,12 +32,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Tuple
 
 import torch
 import torch.nn as nn
 
 from pengwin.models.cbam import CBAM
+
+
+POOLS = {"max": nn.MaxPool2d, "avg": nn.AvgPool2d}
 
 
 class ResidualBlock(nn.Module):
@@ -60,20 +63,30 @@ class FundidoraStage(nn.Module):
     """Un bloque de FundidoraPC (+ residual y CBAM opcionales)."""
 
     def __init__(self, c_in: int, c_out: int, residual: bool, cbam: bool, cbam_reduction: int = 16,
-                 cbam_gamma: bool = False, spatial_dropout: float = 0.0):
+                 cbam_gamma: bool = False, spatial_dropout: float = 0.0, pool: str = "max"):
         super().__init__()
+        if pool not in POOLS:
+            raise ValueError(f"model.pool desconocido: {pool}; válidos: {list(POOLS)}")
         self.conv = nn.Conv2d(c_in, c_out, 3, padding=1, bias=False)
         self.bn = nn.BatchNorm2d(c_out)
         self.res = ResidualBlock(c_out) if residual else nn.Identity()
         self.cbam = CBAM(c_out, cbam_reduction, gamma=cbam_gamma) if cbam else nn.Identity()
-        self.pool = nn.MaxPool2d(2)
+        # "max" es el de FundidoraPC. "avg" promedia: una grieta oscura de 1 px entre dos fragmentos
+        # brillantes baja el promedio de su ventana, mientras que el máximo la borra [y4xul].
+        self.pool = POOLS[pool](2)
         # Dropout espacial: apaga mapas completos (los píxeles vecinos están correlacionados,
         # así que apagar píxeles sueltos casi no regulariza). Solo actúa en model.train().
         self.drop = nn.Dropout2d(spatial_dropout) if spatial_dropout > 0 else nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.res(torch.relu(self.bn(self.conv(x))))
+    def pre_pool(self, x: torch.Tensor) -> torch.Tensor:
+        """Características del bloque ANTES del pooling (misma resolución que su entrada)."""
+        return self.res(torch.relu(self.bn(self.conv(x))))
+
+    def post_pool(self, x: torch.Tensor) -> torch.Tensor:
         return self.drop(self.cbam(self.pool(x)))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.post_pool(self.pre_pool(x))
 
 
 class FundidoraBackbone(nn.Module):
@@ -92,12 +105,13 @@ class FundidoraBackbone(nn.Module):
         cbam_gamma: bool = False,
         spatial_dropout: float = 0.0,
         spatial_dropout_blocks: Sequence[int] = (3, 4),
+        pool: str = "max",
     ):
         super().__init__()
         stages, c_in = [], in_channels
         for k, c_out in enumerate(widths, start=1):
             stages.append(FundidoraStage(c_in, c_out, residual, cbam and k in cbam_blocks, cbam_reduction, cbam_gamma,
-                                         spatial_dropout if k in spatial_dropout_blocks else 0.0))
+                                         spatial_dropout if k in spatial_dropout_blocks else 0.0, pool))
             c_in = c_out
         self.stages = nn.ModuleList(stages)
         self.widths = tuple(widths)
@@ -109,6 +123,20 @@ class FundidoraBackbone(nn.Module):
             x = stage(x)
             feats.append(x)
         return feats
+
+    def forward_with_stem(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        """Como ``forward``, más C0: las características del bloque 1 antes de su pooling.
+
+        C0 está a resolución completa (stride 1, ``widths[0]`` canales). Es lo único de la red
+        que ve la imagen sin submuestrear; ``model.seg_fullres_skip`` lo lleva al decodificador.
+        """
+        c0 = self.stages[0].pre_pool(x)
+        x = self.stages[0].post_pool(c0)
+        feats = [x]
+        for stage in self.stages[1:]:
+            x = stage(x)
+            feats.append(x)
+        return c0, feats
 
     def shared_parameters(self) -> List[nn.Parameter]:
         """Parámetros de la última capa compartida (bloque 4 + su CBAM) [DD §4].
@@ -133,6 +161,7 @@ def build_backbone(model_cfg: Dict, in_channels: int = 3) -> FundidoraBackbone:
         cbam_gamma=bool(model_cfg.get("cbam_gamma", False)),
         spatial_dropout=float(model_cfg.get("spatial_dropout", 0.0)),
         spatial_dropout_blocks=tuple(model_cfg.get("spatial_dropout_blocks", (3, 4))),
+        pool=str(model_cfg.get("pool", "max")),
     )
 
 

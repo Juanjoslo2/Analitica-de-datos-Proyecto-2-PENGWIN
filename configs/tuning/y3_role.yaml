@@ -1,0 +1,4 @@
+# [y4xul] y0 + salida role3 (fondo / principal / secundario). La cabeza de borde se conserva: el mismo
+# checkpoint se evalúa con edt (control) y con el método role.
+base: ../base.yaml
+model: {pretrained: false, seg_outputs: [semantic4, fracture_edge, role3]}

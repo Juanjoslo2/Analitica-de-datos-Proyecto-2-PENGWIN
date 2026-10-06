@@ -68,6 +68,7 @@ def evaluate(model, loader, loss_fn, device, cfg: Dict, amp: bool = True) -> Dic
     det_eval, seg_eval = DetectionEvaluator(), SegmentationEvaluator()
     sums: Dict[str, float] = {}
     probs, targets = [], []
+    role_cm = torch.zeros(3, 3, dtype=torch.float64)      # [y4xul] confusión objetivo × predicho de role3
     n, t_model = 0, 0.0
     for batch in loader:
         batch = to_device(batch, device)
@@ -86,6 +87,9 @@ def evaluate(model, loader, loss_fn, device, cfg: Dict, amp: bool = True) -> Dic
         for i, d in enumerate(dets):
             det_eval.add(d, batch["boxes"][i], batch["present"][i], batch["ignore"][i])
         seg_eval.add(out["seg_logits"].argmax(1), batch["semantic"])
+        if "role_logits" in out:
+            idx = batch["role3"].flatten() * 3 + out["role_logits"].argmax(1).flatten()
+            role_cm += torch.bincount(idx, minlength=9).view(3, 3).double().cpu()
         probs.append(torch.sigmoid(out["cls_logits"].float()).cpu())
         targets.append(batch["present"].cpu())
 
@@ -101,6 +105,12 @@ def evaluate(model, loader, loss_fn, device, cfg: Dict, amp: bool = True) -> Dic
     for c, name in enumerate(REGION_NAMES):
         res[f"cls_f1_{name}"] = float(f1_score(t[:, c], p[:, c] > 0.5, zero_division=0))
     res["ms_por_corte_modelo"] = 1000 * t_model / max(len(p), 1)
+    if role_cm.sum() > 0:
+        # Dice por vóxel de las clases principal y secundario: señal temprana de la salida role3,
+        # sin posproceso. No entra en ``selection_score``.
+        for c, name in ((1, "principal"), (2, "secundario")):
+            denom = role_cm[c].sum() + role_cm[:, c].sum()
+            res[f"role_dice_{name}"] = float(2 * role_cm[c, c] / denom) if denom > 0 else float("nan")
     return res
 
 

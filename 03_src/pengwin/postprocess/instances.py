@@ -46,6 +46,9 @@ PP_DEFAULTS = {
     "core_seed_depth_mm": 0.0,  # method="core3": erosión extra por distancia del núcleo (0 = ninguna)
     "hmax_h_mm": 1.5,          # method="hmax": dinámica de las h-máximas de la distancia [F2C1]
     "dist_max_mm": 8.0,         # method="dist": recorte del mapa predicho (= loss.dist_max_mm) [F2B2]
+    "role_threshold": 0.5,      # method="role": P(secundario | hueso) ≥ umbral [y4xul]
+    "role_seed_depth_mm": 1.5,  # method="role": erosión que separa secundarios que se tocan entre sí
+    "role_smooth_mm": 0.0,      # method="role": σ en mm del suavizado de P(secundario) a lo largo de z
 }
 
 
@@ -65,7 +68,8 @@ def instance_kwargs(pp: dict) -> dict:
     """Del bloque ``postprocess`` resuelto a los argumentos con nombre de ``separate_instances``."""
     kw = {k: pp[k] for k in ("edge_threshold", "min_fragment_cm3", "max_fragments", "seed_depth_mm",
                              "seed_min_cm3", "edge_weight", "core_threshold", "core_seed_depth_mm",
-                             "dist_max_mm", "hmax_h_mm")}
+                             "dist_max_mm", "hmax_h_mm", "role_threshold", "role_seed_depth_mm",
+                             "role_smooth_mm")}
     kw["method"] = pp["instance_method"]
     return kw
 
@@ -368,12 +372,117 @@ def separate_region_edt_hmax(mask: np.ndarray, edge: np.ndarray, spacing_zyx: Se
     return out
 
 
+def separate_region_role(mask: np.ndarray, edge: np.ndarray, spacing_zyx: Sequence[float],
+                         role: np.ndarray | None, role_threshold: float = 0.5, role_seed_depth_mm: float = 1.5,
+                         edge_threshold: float = 0.2, seed_min_cm3: float = 0.02, max_fragments: int = 10,
+                         seed_depth_mm: float = 5.0, edge_weight: float = 5.0,
+                         min_fragment_cm3: float = 0.1, role_smooth_mm: float = 0.0) -> np.ndarray:
+    """Variante por PAPEL predicho (principal / secundario) [y4xul].
+
+    ``role`` es P(secundario | hueso) en [0, 1]. La red ya dijo qué vóxeles son del fragmento
+    principal y cuáles de un secundario, así que la frontera principal-secundario no depende de
+    la cabeza de borde (recall 0,19) ni de erosionar 5 mm:
+
+    0. ``role`` se suaviza a lo largo de z con una gaussiana de σ = ``role_smooth_mm``. El modelo
+       decide corte a corte: si en unos cortes no marca un secundario, ese fragmento queda partido
+       en rodajas y cada rodaja cuenta como fragmento aparte. El oráculo lo mide: con el papel
+       borrado en el 20 % de los cortes el Dice por fragmento cae de 1,00 a 0,81
+    1. secundario = región ∧ ``role`` ≥ ``role_threshold``; principal = el resto de la región
+    2. semillas del principal: sus componentes 3D enteras, SIN erosión (no se parte el principal)
+    3. semillas de secundarios: componentes de d_sec > ``role_seed_depth_mm``, con d_sec la EDT en
+       mm del secundario sin borde. La erosión solo separa secundarios que se tocan ENTRE SÍ; el
+       oráculo de la Fase 2 pone ese óptimo en 1,5 mm. Lo que queda fuera del alcance de esas
+       semillas (más delgado que 2 × la erosión) y mide al menos ``min_fragment_cm3`` aporta su
+       mitad más profunda: así los fragmentos finos no desaparecen, que es lo que le pasa a
+       ``edt`` a 5 mm
+    4. watershed sobre −d por separado en cada papel: cada semilla crece solo dentro de su clase
+    5. ids por volumen: 1 = el mayor
+
+    Sin ``role`` (modelo sin la salida ``role3``) cae a ``edt``.
+    """
+    if role is None:
+        return separate_region_edt(mask, edge, spacing_zyx, edge_threshold, seed_depth_mm, seed_min_cm3,
+                                   max_fragments, edge_weight)
+    out = np.zeros(mask.shape, np.int32)
+    if not mask.any():
+        return out
+    sl = _bbox(mask)
+    m = mask[sl]
+    r = role[sl].astype(np.float32)
+    if role_smooth_mm > 0 and r.shape[0] > 1:
+        r = ndi.gaussian_filter1d(r, sigma=role_smooth_mm / float(spacing_zyx[0]), axis=0, mode="nearest")
+    sec = m & (r >= role_threshold)
+    main = m & ~sec
+    if not main.any():                                   # todo "secundario": no hay principal que respetar
+        main, sec = sec, main
+    vox_cm3 = float(np.prod(spacing_zyx)) / 1000.0
+    d = np.zeros(m.shape, np.float32)
+    d[main] = ndi.distance_transform_edt(main, sampling=spacing_zyx)[main]
+
+    markers = np.zeros(m.shape, np.int32)
+    cc, n = ndi.label(main, structure=STRUCT_26)
+    sizes = np.bincount(cc.ravel())[1:] * vox_cm3
+    grandes = [i + 1 for i in np.argsort(-sizes) if sizes[i] >= seed_min_cm3] or [int(np.argmax(sizes)) + 1]
+    grandes = grandes[:max_fragments]
+    for new_id, old_id in enumerate(grandes, start=1):
+        markers[cc == old_id] = new_id
+    next_id = len(grandes) + 1
+
+    if sec.any():
+        sec_core = sec & (edge[sl] < edge_threshold)
+        if not sec_core.any():
+            sec_core = sec
+        d_sec = ndi.distance_transform_edt(sec_core, sampling=spacing_zyx)
+        d[sec] = d_sec[sec]
+        seeds = d_sec > role_seed_depth_mm
+        # Rescate: lo que queda fuera del alcance de las semillas (más delgado que 2 × la erosión)
+        # no ha desaparecido, es un fragmento fino. Cada resto de al menos ``min_fragment_cm3``
+        # aporta su mitad más profunda como semilla. Se mide el alcance desde las semillas y no por
+        # componente porque una lámina que toca a un fragmento grueso forma una sola componente con él.
+        diag = float(np.sqrt(np.sum(np.square(spacing_zyx))))
+        alcance = (ndi.distance_transform_edt(~seeds, sampling=spacing_zyx) <= role_seed_depth_mm + diag
+                   if seeds.any() else np.zeros(m.shape, bool))
+        comp, n_comp = ndi.label(sec_core & ~alcance, structure=STRUCT_26)
+        if n_comp:
+            idx = np.arange(1, n_comp + 1)
+            vol_resto = np.bincount(comp.ravel(), minlength=n_comp + 1)[1:] * vox_cm3
+            medio = np.full(n_comp + 1, np.inf, np.float32)             # inf = resto demasiado pequeño
+            ok = vol_resto >= min_fragment_cm3
+            medio[1:][ok] = 0.5 * np.asarray(ndi.maximum(d_sec, comp, idx), np.float32)[ok]
+            seeds |= (comp > 0) & (d_sec >= medio[comp])
+        cs, ns = ndi.label(seeds, structure=STRUCT_26)
+        vol = np.bincount(cs.ravel(), minlength=ns + 1)[1:]
+        for i in np.argsort(-vol):
+            if next_id > max_fragments:
+                break
+            markers[cs == i + 1] = next_id
+            next_id += 1
+
+    # Un watershed por papel: cada semilla crece solo dentro de su clase, así la frontera
+    # principal-secundario queda exactamente donde la puso la red.
+    lab = np.zeros(m.shape, np.int32)
+    for zona in (main, sec):
+        mk = np.where(zona, markers, 0)
+        if mk.any():
+            lab[zona] = watershed(-d, markers=mk, mask=zona)[zona]
+    lost = m & (lab == 0)                                 # p. ej. motas de secundario sin semilla
+    if lost.any():
+        idx = ndi.distance_transform_edt(lab == 0, sampling=spacing_zyx, return_distances=False, return_indices=True)
+        lab[lost] = lab[tuple(i[lost] for i in idx)]
+    final = np.bincount(lab.ravel())[1:]
+    rank = np.zeros(final.size + 1, np.int32)
+    rank[1:][np.argsort(-final)] = np.arange(1, final.size + 1)
+    out[sl] = np.where(m, rank[lab], 0)
+    return out
+
+
 def separate_instances(semantic: np.ndarray, edge: np.ndarray, spacing_zyx: Sequence[float], edge_threshold: float = 0.5,
                        min_fragment_cm3: float = 0.1, max_fragments: int = 10, method: str = "edge",
                        seed_depth_mm: float = 4.0, seed_min_cm3: float = 0.02, edge_weight: float = 5.0,
                        core: np.ndarray | None = None, core_threshold: float = 0.5,
                        core_seed_depth_mm: float = 0.0, hmax_h_mm: float = 1.5, dist: np.ndarray | None = None,
-                       dist_max_mm: float = 8.0) -> np.ndarray:
+                       dist_max_mm: float = 8.0, role: np.ndarray | None = None, role_threshold: float = 0.5,
+                       role_seed_depth_mm: float = 1.5, role_smooth_mm: float = 0.0) -> np.ndarray:
     """Volumen de etiquetas PENGWIN (0, 1-10 SA, 11-20 LI, 21-30 RI) a partir de semántica + borde.
 
     ``method``:
@@ -387,12 +496,19 @@ def separate_instances(semantic: np.ndarray, edge: np.ndarray, spacing_zyx: Sequ
                  (``separate_region_dist``); ``dist`` **en mm**, misma forma que ``semantic`` (del
                  .npz de ``cv_predict.py``: uint8 × ``DIST_MM_PER_LEVEL``). Si no se pasa, el
                  método equivale a "edt".
+        "role"   principal y secundarios según el papel PREDICHO (``separate_region_role``);
+                 ``role`` es P(secundario | hueso) **en [0, 1]** (del .npz: uint8 / 255). Si no se
+                 pasa, el método equivale a "edt".
     La taxonomía se aplica aquí: los ids de cada región se desplazan a 1-10 / 11-20 / 21-30 y
     ``max_fragments`` acota cuántos salen por región.
     """
     labels = np.zeros(semantic.shape, np.uint8)
     for r in (1, 2, 3):
-        if method == "edt_hmax":
+        if method == "role":
+            frag = separate_region_role(semantic == r, edge, spacing_zyx, role, role_threshold, role_seed_depth_mm,
+                                        edge_threshold, seed_min_cm3, max_fragments, seed_depth_mm, edge_weight,
+                                        min_fragment_cm3, role_smooth_mm)
+        elif method == "edt_hmax":
             frag = separate_region_edt_hmax(semantic == r, edge, spacing_zyx, edge_threshold, seed_depth_mm,
                                             hmax_h_mm, seed_min_cm3, max_fragments, edge_weight)
         elif method == "hmax":

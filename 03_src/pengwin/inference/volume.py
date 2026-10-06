@@ -87,13 +87,15 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
         core      float16  probabilidad de núcleo, SOLO si el modelo tiene la salida ``core3``
         dist      float16  distancia a la superficie de fractura en mm (0..``loss.dist_max_mm``),
                            SOLO si el modelo tiene la salida ``dist`` [F2B2]
+        role      float16  P(secundario | hueso) = p_sec / (p_principal + p_sec), SOLO si el modelo
+                           tiene la salida ``role3`` [y4xul]
         cls       float32  (Z, 3) probabilidad de presencia de cada región
         boxes     lista de Z dicts {boxes, scores, labels} (numpy)
     y el ``meta`` del caché.
 
     ``tta``: lista de transformaciones (escala, rotación °, tx, ty) para promediar ``semantic`` y
     ``edge`` (``TTA_DEFAULT`` es la de 5 pasadas). ``None`` = una sola pasada, como siempre.
-    Con TTA no se calculan ``core`` ni ``dist``.
+    Con TTA no se calculan ``core``, ``dist`` ni ``role``.
     """
     image, _, meta = load_case_cache(Path(cache_dir) / case_id)
     model.eval()
@@ -105,6 +107,7 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
     edge = np.zeros((Z, H, W), np.float16)
     core: np.ndarray | None = None          # se crea solo si el modelo tiene la salida core3
     dist: np.ndarray | None = None          # ídem con la salida dist [F2B2]
+    role: np.ndarray | None = None          # ídem con la salida role3 [y4xul]
     cls = np.zeros((Z, 3), np.float32)
     boxes = []
     amp = device.type == "cuda"
@@ -116,7 +119,7 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
             out = _tta_forward(model, x, tta, amp, device)
             semantic[z0:z0 + len(zs)] = out["tta_sem"].argmax(1).cpu().numpy().astype(np.uint8)
             edge[z0:z0 + len(zs)] = out["tta_edge"][:, 0].cpu().numpy().astype(np.float16)
-            out = {k: v for k, v in out.items() if k not in ("core_logits", "dist_logits")}
+            out = {k: v for k, v in out.items() if k not in ("core_logits", "dist_logits", "role_logits")}
         else:
             with torch.amp.autocast(device_type=device.type, dtype=torch.float16, enabled=amp):
                 out = model(x)
@@ -131,6 +134,13 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
                 dist = np.zeros((Z, H, W), np.float16)
             mm = SegmentationHead.dist_mm_from_logits(out["dist_logits"], dist_max_mm)
             dist[z0:z0 + len(zs)] = mm[:, 0].cpu().numpy().astype(np.float16)
+        if "role_logits" in out:                        # P(secundario | hueso) [y4xul]
+            if role is None:
+                role = np.zeros((Z, H, W), np.float16)
+            # Se normaliza entre principal y secundario: QUÉ es hueso lo decide la semántica de 4
+            # clases (etapa 1); esta salida solo reparte el hueso entre los dos papeles.
+            pr = out["role_logits"].float()[:, 1:].softmax(1)[:, 1]
+            role[z0:z0 + len(zs)] = pr.cpu().numpy().astype(np.float16)
         cls[z0:z0 + len(zs)] = torch.sigmoid(out["cls_logits"].float()).cpu().numpy()
         dets = decode(out["det_scores"], out["det_ltrb"], stride, W, pp.get("det_score_threshold", 0.3),
                       pp.get("nms_iou", 0.5), pp.get("max_boxes_per_class", 1))
@@ -140,6 +150,8 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
         res["core"] = core
     if dist is not None:
         res["dist"] = dist
+    if role is not None:
+        res["role"] = role
     return res
 
 

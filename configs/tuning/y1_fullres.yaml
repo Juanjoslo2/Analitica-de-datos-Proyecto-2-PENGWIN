@@ -1,0 +1,3 @@
+# [y4xul] y0 + C0 (bloque 1 antes del pooling, stride 1) concatenado en el último paso del decodificador.
+base: ../base.yaml
+model: {pretrained: false, seg_fullres_skip: true}

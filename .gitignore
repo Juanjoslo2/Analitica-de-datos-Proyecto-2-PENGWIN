@@ -49,3 +49,6 @@ reports/overfit/overfit_f2b*
 configs/tuning/*.yaml
 reports/tuning/ESTADO.md
 reports/tuning/PROGRESO.md
+
+# [y4xul] Las configs del cribado y4xul sí se versionan: sin ellas las corridas no se pueden repetir.
+!configs/tuning/y*.yaml

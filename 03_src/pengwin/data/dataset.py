@@ -191,6 +191,7 @@ class PengwinSlices(Dataset):
             "semantic": torch.from_numpy(t["semantic"]),
             "edge": torch.from_numpy(t["edge"])[None],
             "core3": torch.from_numpy(t["core3"]),        # 0 fondo, 1 núcleo, 2 borde [F2B1]
+            "role3": torch.from_numpy(t["role3"]),        # 0 fondo, 1 principal, 2 secundario [y4xul]
             "boxes": torch.from_numpy(t["boxes"]),
             "present": torch.from_numpy(t["present"].astype(np.float32)),
             "ignore": torch.from_numpy(t["ignore"]),

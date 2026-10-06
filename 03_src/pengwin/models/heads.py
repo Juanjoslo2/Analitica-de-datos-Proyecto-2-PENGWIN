@@ -19,6 +19,10 @@ profundo (el que pasó por el CBAM del bloque 4).
     fracture_edge   borde binario      -> ``edge_logits``  (semanas 9-10)
     core3           3 clases fondo/núcleo/borde -> ``core_logits`` [F2B1]
     dist            distancia a la fractura (regresión) -> ``dist_logits`` [F2B2]
+    role3           3 clases fondo/principal/secundario -> ``role_logits`` [y4xul]
+
+``model.seg_fullres_skip``: el último paso del decodificador concatena C0, las características
+del bloque 1 del backbone antes de su pooling (resolución completa) [y4xul].
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-SEG_OUTPUTS = ("semantic4", "fracture_edge", "core3", "dist")
+SEG_OUTPUTS = ("semantic4", "fracture_edge", "core3", "dist", "role3")
 DEFAULT_SEG_OUTPUTS = ("semantic4", "fracture_edge")
 
 
@@ -102,7 +106,7 @@ class SegmentationHead(nn.Module):
     """
 
     def __init__(self, p3: int, c2: int, c1: int, num_classes: int = 4, width: int = 64,
-                 spatial_dropout: float = 0.0, outputs: Sequence[str] = DEFAULT_SEG_OUTPUTS):
+                 spatial_dropout: float = 0.0, outputs: Sequence[str] = DEFAULT_SEG_OUTPUTS, c0: int = 0):
         super().__init__()
         self.outputs = tuple(outputs)
         desconocidas = [o for o in self.outputs if o not in SEG_OUTPUTS]
@@ -115,13 +119,21 @@ class SegmentationHead(nn.Module):
         # canales y apagarlos borraría el detalle fino del borde de fractura.
         self.drop = nn.Dropout2d(spatial_dropout) if spatial_dropout > 0 else nn.Identity()
         self.up2 = conv_bn_relu(width + c1, width // 2)
-        self.up1 = conv_bn_relu(width // 2, width // 2)
+        # [y4xul] Sin ``c0`` el paso de stride 2 a 1 es solo una interpolación: ninguna
+        # característica llega a resolución completa y una grieta de 1-2 px no tiene de dónde
+        # salir. Con ``c0`` (canales de C0) se concatena el bloque 1 antes de su pooling.
+        self.c0 = int(c0)
+        self.up1 = conv_bn_relu(width // 2 + self.c0, width // 2)
         self.semantic = nn.Conv2d(width // 2, num_classes, 1)
         self.edge = nn.Conv2d(width // 2, 1, 1) if "fracture_edge" in self.outputs else None
         self.core = nn.Conv2d(width // 2, 3, 1) if "core3" in self.outputs else None
         # [F2B2] Regresión de la distancia a la superficie de fractura, a la MISMA resolución que
         # la salida de borde. Un solo canal: distancia = sigmoid(dist_logits) · loss.dist_max_mm.
         self.dist = nn.Conv2d(width // 2, 1, 1) if "dist" in self.outputs else None
+        # [y4xul] Papel de cada vóxel dentro de su hueso: fondo / fragmento principal / secundario.
+        # Es una clase densa (los secundarios son el 10,5 % del hueso, frente a 1 de cada 83 del
+        # borde) y un error en la frontera cuesta vóxeles de frontera, no fusiona dos fragmentos.
+        self.role = nn.Conv2d(width // 2, 3, 1) if "role3" in self.outputs else None
         # Sin cabeza de borde binaria, P(borde) se deriva de core3 (o de la distancia) para que el
         # resto del pipeline (inference/volume.py, posproceso "edge"/"edt") siga funcionando igual.
         self.derive_edge = self.edge is None and (self.core is not None or self.dist is not None)
@@ -154,11 +166,19 @@ class SegmentationHead(nn.Module):
         """
         return torch.sigmoid(dist_logits.float()) * float(dist_max_mm)
 
-    def forward(self, p3: torch.Tensor, c2: torch.Tensor, c1: torch.Tensor, out_size) -> Dict[str, torch.Tensor]:
+    def forward(self, p3: torch.Tensor, c2: torch.Tensor, c1: torch.Tensor, out_size,
+                c0: torch.Tensor | None = None) -> Dict[str, torch.Tensor]:
         x = self.drop(self.up4(self._up_cat(p3, c2)))
         x = self.up2(self._up_cat(x, c1))
-        x = self.up1(F.interpolate(x, size=out_size, mode="bilinear", align_corners=False))
+        if self.c0:
+            if c0 is None:
+                raise ValueError("SegmentationHead con c0 > 0 necesita las características C0 del backbone")
+            x = self.up1(self._up_cat(x, c0))
+        else:
+            x = self.up1(F.interpolate(x, size=out_size, mode="bilinear", align_corners=False))
         out = {"seg_logits": self.semantic(x)}
+        if self.role is not None:
+            out["role_logits"] = self.role(x)
         if self.core is not None:
             out["core_logits"] = self.core(x)
         if self.dist is not None:

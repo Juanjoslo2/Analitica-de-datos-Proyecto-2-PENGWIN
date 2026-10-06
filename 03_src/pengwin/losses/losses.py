@@ -47,6 +47,10 @@ CORE3_CE_WEIGHTS = (1.0, 5.4, 54.8)
 # de la superficie de fractura trae ±0,5 vóxel ≈ ±0,6 mm. Por debajo de ese ruido la pérdida es
 # cuadrática (el gradiente se apaga en vez de pelear con el ruido) y por encima es L1 (robusta).
 DIST_HUBER_BETA = 0.1
+# [y4xul] role3 (fondo, principal, secundario): misma regla que ``seg_ce_weights``, peso ∝
+# 1/√frecuencia relativa al fondo. Hueso/fondo = 0,035 (de 1 / 10,8 / 8,7 / 8,7) y los secundarios
+# son el 10,5 % del volumen de hueso en train+val (reports/eda/eda_fragments.csv, sin test).
+ROLE3_CE_WEIGHTS = (1.0, 5.6, 16.5)
 
 
 def sigmoid_focal_loss(logits: torch.Tensor, targets: torch.Tensor, alpha: float = 0.25, gamma: float = 2.0) -> torch.Tensor:
@@ -90,6 +94,7 @@ class MultiTaskLoss(nn.Module):
         self.stride = int(cfg["model"].get("det_stride", 8))
         self.register_buffer("ce_weights", torch.tensor(lc.get("seg_ce_weights", [1.0, 1.0, 1.0, 1.0]), dtype=torch.float32))
         self.register_buffer("core3_weights", torch.tensor(lc.get("core3_ce_weights", CORE3_CE_WEIGHTS), dtype=torch.float32))
+        self.register_buffer("role3_weights", torch.tensor(lc.get("role3_ce_weights", ROLE3_CE_WEIGHTS), dtype=torch.float32))
         self.seg_outputs = tuple(cfg["model"].get("seg_outputs", DEFAULT_SEG_OUTPUTS) or DEFAULT_SEG_OUTPUTS)
         self.edge_pos_weight = float(lc.get("edge_pos_weight", 21.0))
         self.dist_huber_beta = float(lc.get("dist_huber_beta", DIST_HUBER_BETA))   # 0 = L1 pura [F2B2]
@@ -131,6 +136,15 @@ class MultiTaskLoss(nn.Module):
             parts["core3_ce"] = F.cross_entropy(core, tgt, weight=self.core3_weights)
             parts["core3_dice"] = soft_dice_loss(core.softmax(1)[:, 1:], hot3[:, 1:])   # núcleo y borde
             parts["seg"] = parts["seg"] + parts["core3_ce"] + parts["core3_dice"]
+        if "role3" in self.seg_outputs:
+            # Principal / secundario como clases densas. Va dentro del término ``seg`` (la pérdida
+            # sigue siendo de 3 términos) con la misma forma que la semántica: CE ponderada + Dice.
+            role = out["role_logits"].float()
+            tgt = batch["role3"]
+            hot = F.one_hot(tgt, role.shape[1]).permute(0, 3, 1, 2).float()
+            parts["role3_ce"] = F.cross_entropy(role, tgt, weight=self.role3_weights)
+            parts["role3_dice"] = soft_dice_loss(role.softmax(1)[:, 1:], hot[:, 1:])     # principal y secundario
+            parts["seg"] = parts["seg"] + parts["role3_ce"] + parts["role3_dice"]
         if "dist" in self.seg_outputs:
             # Regresión densa de la distancia a la fractura, ENMASCARADA AL HUESO: fuera del hueso
             # la distancia no existe y supervisar ese 96 % de píxeles con un 0 constante volvería a

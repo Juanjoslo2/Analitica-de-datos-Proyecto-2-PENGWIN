@@ -51,13 +51,17 @@ def main() -> None:
     ap.add_argument("--save-dir", type=Path, default=None)
     ap.add_argument("--config", type=Path, default=REPO / "configs" / "base.yaml",
                     help="de dónde sale el bloque postprocess (el checkpoint solo aporta lo que no esté ahí)")
-    ap.add_argument("--method", default=None, choices=["edge", "edt", "core3", "dist"], help="por defecto, el de la config")
+    ap.add_argument("--method", default=None, choices=["edge", "edt", "core3", "dist", "hmax", "edt_hmax", "role"],
+                    help="por defecto, el de la config")
     ap.add_argument("--seed-depth-mm", type=float, default=None)
     ap.add_argument("--edge-threshold", type=float, default=None)
     ap.add_argument("--seed-min-cm3", type=float, default=None)
     ap.add_argument("--edge-weight", type=float, default=None)
     ap.add_argument("--core-threshold", type=float, default=None, help="method=core3: P(núcleo) > umbral")
     ap.add_argument("--core-seed-depth-mm", type=float, default=None, help="method=core3: erosión extra del núcleo")
+    ap.add_argument("--role-threshold", type=float, default=None, help="method=role: P(secundario | hueso) ≥ umbral")
+    ap.add_argument("--role-seed-depth-mm", type=float, default=None, help="method=role: erosión entre secundarios")
+    ap.add_argument("--role-smooth-mm", type=float, default=None, help="method=role: σ del suavizado en z")
     ap.add_argument("--tag", default="", help="sufijo del nombre del reporte (p. ej. _edt)")
     ap.add_argument("--tta", action="store_true", help="promedia región y borde con TTA_DEFAULT (volume.py)")
     args = ap.parse_args()
@@ -71,7 +75,9 @@ def main() -> None:
                              {"instance_method": args.method, "edge_threshold": args.edge_threshold,
                               "seed_depth_mm": args.seed_depth_mm, "seed_min_cm3": args.seed_min_cm3,
                               "edge_weight": args.edge_weight, "core_threshold": args.core_threshold,
-                              "core_seed_depth_mm": args.core_seed_depth_mm})
+                              "core_seed_depth_mm": args.core_seed_depth_mm,
+                              "role_threshold": args.role_threshold, "role_seed_depth_mm": args.role_seed_depth_mm,
+                              "role_smooth_mm": args.role_smooth_mm})
     print("posproceso:", pp, flush=True)
     model = PengwinNet(cfg["model"]).to(device).eval()
     model.load_state_dict(ck["model"])
@@ -89,7 +95,8 @@ def main() -> None:
         # ``core`` solo existe con model.seg_outputs: [..., core3] y ``dist`` con [..., dist];
         # sin ellos, method="core3"/"dist" caen al núcleo derivado del borde (ver instances.py).
         lab_grid = separate_instances(pred["semantic"], pred["edge"], grid_spacing,
-                                      core=pred.get("core"), dist=pred.get("dist"), **instance_kwargs(pp))
+                                      core=pred.get("core"), dist=pred.get("dist"), role=pred.get("role"),
+                                      **instance_kwargs(pp))
         lab_pred = to_native(lab_grid, meta, order=0)
         gt, spacing, _ = load_and_standardize_mha(pairs[cid]["label_path"], is_label=True)
         fr = match_fragments(gt, lab_pred, spacing)

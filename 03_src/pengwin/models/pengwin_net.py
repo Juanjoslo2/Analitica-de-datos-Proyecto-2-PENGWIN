@@ -13,9 +13,12 @@ Modelo multitarea completo: backbone compartido (FundidoraPC extendida + CBAM) �
                                                                edge_logits (B, 1, 256, 256)
                                                                core_logits (B, 3, 256, 256)*
                                                                dist_logits (B, 1, 256, 256)**
+                                                               role_logits (B, 3, 256, 256)***
 
 (*) solo con ``model.seg_outputs: [semantic4, core3]`` [F2B1]; (**) solo con
-``model.seg_outputs: [semantic4, dist]`` [F2B2]. Las salidas de la cabeza de segmentación las
+``model.seg_outputs: [semantic4, dist]`` [F2B2]; (***) solo con ``role3`` en ``model.seg_outputs``
+[y4xul]. Con ``model.seg_fullres_skip: true`` la cabeza de segmentación recibe además C0 (bloque 1
+antes del pooling, stride 1) y ``model.pool`` elige el pooling del backbone. Las salidas de la cabeza de segmentación las
 elige ``model.seg_outputs``; ``cls_logits``, ``det_scores`` y ``det_ltrb`` no cambian nunca.
 Si no hay cabeza de borde binaria, ``edge_logits`` se deriva de ``core_logits`` o de
 ``dist_logits`` (ver ``SegmentationHead``).
@@ -48,12 +51,16 @@ class PengwinNet(nn.Module):
         self.cls_head = ClassificationHead(c4, n_cls)
         self.det_head = GridDetectionHead(neck, n_cls, self.stride)
         self.seg_outputs = tuple(model_cfg.get("seg_outputs", DEFAULT_SEG_OUTPUTS) or DEFAULT_SEG_OUTPUTS)
+        self.fullres_skip = bool(model_cfg.get("seg_fullres_skip", False))
         self.seg_head = SegmentationHead(neck, c2, c1, num_classes=n_cls + 1,
                                          spatial_dropout=float(model_cfg.get("seg_spatial_dropout", 0.0)),
-                                         outputs=self.seg_outputs)
+                                         outputs=self.seg_outputs, c0=c1 if self.fullres_skip else 0)
 
     def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
-        c1, c2, c3, c4 = self.backbone(x)
+        if self.fullres_skip:
+            c0, (c1, c2, c3, c4) = self.backbone.forward_with_stem(x)
+        else:
+            c0, (c1, c2, c3, c4) = None, self.backbone(x)
         p3 = self.neck(c3, c4)
         det_scores, det_ltrb = self.det_head(p3)
         out = {
@@ -61,7 +68,7 @@ class PengwinNet(nn.Module):
             "det_scores": det_scores,
             "det_ltrb": det_ltrb,
         }
-        out.update(self.seg_head(p3, c2, c1, x.shape[-2:]))
+        out.update(self.seg_head(p3, c2, c1, x.shape[-2:], c0))
         return out
 
     def gammas(self) -> Dict[str, float]:

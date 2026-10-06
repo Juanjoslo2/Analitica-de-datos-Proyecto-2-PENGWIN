@@ -9,6 +9,7 @@ Por caso se guarda ``<out-dir>/<case>.npz`` con
     core      uint8 (Z, 256, 256)   P(núcleo) · 255, solo con ``model.seg_outputs: [..., core3]``
     dist      uint8 (Z, 256, 256)   distancia a la fractura / DIST_MM_PER_LEVEL (0,1 mm por nivel,
                                     0..25,5 mm), solo con ``model.seg_outputs: [..., dist]`` [F2B2]
+    role      uint8 (Z, 256, 256)   P(secundario | hueso) · 255, solo con ``role3`` [y4xul]
 y en ``<out-dir>/metricas.json`` las métricas de clasificación y detección del fold (evaluate.py).
 
 Uso:
@@ -60,6 +61,8 @@ def main() -> None:
         if "dist" in p:          # modelos con la salida dist: mm / 0,1 mm por nivel [F2B2]
             arrays["dist"] = np.round(np.clip(p["dist"].astype(np.float32), 0, 255 * DIST_MM_PER_LEVEL)
                                       / DIST_MM_PER_LEVEL).astype(np.uint8)
+        if "role" in p:          # modelos con la salida role3: P(secundario | hueso)·255 [y4xul]
+            arrays["role"] = np.round(p["role"].astype(np.float32) * 255).astype(np.uint8)
         np.savez_compressed(args.out_dir / f"{cid}.npz", **arrays)
     if args.skip_metrics:
         (args.out_dir / "metricas.json").write_text(json.dumps({"checkpoint": str(args.ckpt), "fold": args.fold, "tta": args.tta,

@@ -1,0 +1,4 @@
+# [y4xul] Control del cribado: base.yaml sin transfer learning (el laboratorio no tiene los pesos del Taller 3
+# y la Fase 2 midió que no aportan: +0,0105, t = 1,19).
+base: ../base.yaml
+model: {pretrained: false}

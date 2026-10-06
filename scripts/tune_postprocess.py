@@ -57,6 +57,7 @@ def run_case(task):
     # Distancia predicha a la fractura en mm (F2B2); los .npz anteriores no la traen y los
     # métodos de siempre no la usan: puramente aditivo
     dist = z["dist"].astype(np.float32) * DIST_MM_PER_LEVEL if "dist" in z.files else None
+    role = z["role"].astype(np.float32) / 255.0 if "role" in z.files else None      # [y4xul]
     _, label, meta = load_case_cache(Path(cache_dir) / case)
     gt = np.asarray(label)
     sp = (meta["spacing_zyx"][0], meta["pixel_mm"], meta["pixel_mm"])
@@ -68,7 +69,10 @@ def run_case(task):
                                  core=core, core_threshold=c.get("core_threshold", 0.5),
                                  core_seed_depth_mm=c.get("core_seed_depth_mm", 0.0),
                                  hmax_h_mm=c.get("hmax_h_mm", 1.5),
-                                 dist=dist, dist_max_mm=c.get("dist_max_mm", 8.0))
+                                 dist=dist, dist_max_mm=c.get("dist_max_mm", 8.0),
+                                 role=role, role_threshold=c.get("role_threshold", 0.5),
+                                 role_seed_depth_mm=c.get("role_seed_depth_mm", 1.5),
+                                 role_smooth_mm=c.get("role_smooth_mm", 0.0))
         fr = match_fragments(gt, lab, sp)
         dr = distance_comparison(gt, lab, sp, fr)
         out.append((i, fold, fr, dr))
