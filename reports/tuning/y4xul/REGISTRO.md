@@ -77,3 +77,32 @@ que decide corte a corte) baja a 0,67 sin suavizar y a 0,72-0,77 con suavizado d
 Lectura: el techo supera el objetivo (0,85 / 0,70) y no parte el principal, pero queda por debajo
 del 0,995 del oráculo de borde porque dos secundarios que se tocan siguen necesitando erosión. Y es
 sensible a la consistencia entre cortes. La hipótesis de `role3` es más débil que la del salto.
+
+## Resultado del cribado (2026-10-06, 15:54)
+
+Fold 0, 12 épocas, última época, cada modelo en su mejor posproceso.
+
+| id | posproceso | Dice frag | IoU frag | Dice principal | Dice secundario | rec. sec. | mAP@[.5:.95] | IoU caja | Dice región | F1 | AUC |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| y0 control | edt 5 / 0,1 | 0,6842 | 0,6164 | 0,9110 | 0,4739 | 49,1 % | 0,8127 | 0,8968 | 0,9597 | 0,9854 | 0,9970 |
+| y1 salto | edt 4 / 0,2 | 0,7292 | 0,6663 | 0,9327 | 0,5405 | 56,4 % | 0,8057 | 0,8947 | 0,9617 | 0,9830 | 0,9960 |
+| y2 salto + avg | edt 4 / 0,1 | 0,7128 | 0,6542 | 0,9295 | 0,5118 | 54,5 % | 0,8030 | 0,8921 | 0,9619 | 0,9863 | 0,9970 |
+| y4 salto + role3 | edt 4 / 0,2 | 0,7084 | 0,6507 | 0,9362 | 0,4972 | 52,7 % | 0,7890 | 0,8864 | 0,9630 | 0,9801 | 0,9957 |
+| y4 salto + role3 | role 2 / 0,3 / 3 | 0,7574 | 0,6739 | 0,9293 | 0,5979 | 56,4 % | (mismo modelo) | | | | |
+
+Aplicando la regla sin cambiarla (2σ = 0,0194):
+
+- **y1 pasa** en la métrica primaria: +0,0450 (4,6σ), IoU +0,050, principal +0,022. Guardarraíl: F1
+  −0,0024 y AUC −0,0010 quedan fuera de su margen por poco (0,0022 y 0,0008); el resto dentro.
+- **y2 pasa** (+0,0286, 2,9σ) pero queda por debajo de y1: el pooling promedio no aporta sobre el
+  máximo. No se confirma.
+- **y4 con `role` pasa** en la métrica primaria: +0,0732 (7,5σ), IoU +0,058, principal +0,018.
+  **Falla el guardarraíl** de detección: mAP@[.5:.95] −0,0237 (margen 0,0192), IoU de caja −0,0104
+  (margen 0,0092), F1 −0,0053. Siguen muy por encima de los objetivos del enunciado (0,40 / 0,65 /
+  0,85), pero es un coste real que la confirmación debe medir.
+- El Dice de la cabeza de borde en validación es igual en las cuatro corridas (0,524-0,529): el
+  salto no mejora la cobertura del borde. La ganancia de y1 llega por otra vía (región y fragmento
+  principal más limpios), no por la hipótesis con la que se propuso.
+
+Ningún candidato alcanza el objetivo (0,85 / 0,70). Se lanza la confirmación de y0, y1 e y4: 5
+folds, 20 épocas, emparejada por fold. El test no se ha tocado.
