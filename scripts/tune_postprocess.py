@@ -30,6 +30,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "03_src"))
 
 from pengwin.data.slice_cache import load_case_cache  # noqa: E402
+from pengwin.data.targets import DIST_MM_PER_LEVEL  # noqa: E402
 from pengwin.evaluation.fragment_metrics import distance_comparison, match_fragments, summarize  # noqa: E402
 from pengwin.postprocess.instances import separate_instances  # noqa: E402
 
@@ -51,6 +52,11 @@ def run_case(task):
     case, fold, oof_dir, cache_dir, combos = task
     z = np.load(Path(oof_dir) / f"{case}.npz")
     sem, edge = z["semantic"], z["edge"].astype(np.float32) / 255.0
+    # P(núcleo) de los modelos con la salida core3 (F2B1); los demás .npz no la traen
+    core = z["core"].astype(np.float32) / 255.0 if "core" in z.files else None
+    # Distancia predicha a la fractura en mm (F2B2); los .npz anteriores no la traen y los
+    # métodos de siempre no la usan: puramente aditivo
+    dist = z["dist"].astype(np.float32) * DIST_MM_PER_LEVEL if "dist" in z.files else None
     _, label, meta = load_case_cache(Path(cache_dir) / case)
     gt = np.asarray(label)
     sp = (meta["spacing_zyx"][0], meta["pixel_mm"], meta["pixel_mm"])
@@ -58,7 +64,11 @@ def run_case(task):
     for i, c in enumerate(combos):
         lab = separate_instances(sem, edge, sp, c.get("edge_threshold", 0.2), c.get("min_fragment_cm3", 0.1),
                                  method=c.get("method", "edt"), seed_depth_mm=c.get("seed_depth_mm", 5.0),
-                                 seed_min_cm3=c.get("seed_min_cm3", 0.02), edge_weight=c.get("edge_weight", 5.0))
+                                 seed_min_cm3=c.get("seed_min_cm3", 0.02), edge_weight=c.get("edge_weight", 5.0),
+                                 core=core, core_threshold=c.get("core_threshold", 0.5),
+                                 core_seed_depth_mm=c.get("core_seed_depth_mm", 0.0),
+                                 hmax_h_mm=c.get("hmax_h_mm", 1.5),
+                                 dist=dist, dist_max_mm=c.get("dist_max_mm", 8.0))
         fr = match_fragments(gt, lab, sp)
         dr = distance_comparison(gt, lab, sp, fr)
         out.append((i, fold, fr, dr))

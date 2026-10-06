@@ -6,7 +6,15 @@ Pérdida multitarea de tres términos [DD §4, enunciado §4.1]:
 
     L_cls  BCE multi-etiqueta sobre la presencia de SA / coxal izq. / coxal der. en el corte
     L_det  focal sigmoide sobre el grid (normalizada por nº de positivos) + (1 − GIoU) en positivos
-    L_seg  CE con pesos ∝ 1/√frecuencia + Dice (semántica) + BCE con pos_weight + Dice (borde)
+    L_seg  CE con pesos ∝ 1/√frecuencia + Dice (semántica) + lo que pida ``model.seg_outputs``:
+           ``fracture_edge`` -> BCE con pos_weight + Dice del borde binario (semanas 9-10)
+           ``core3``         -> CE con pesos ∝ 1/√frecuencia + Dice sobre fondo/núcleo/borde [F2B1]
+           ``dist``          -> Huber (smooth L1) enmascarada al hueso sobre la distancia a la
+                               superficie de fractura, normalizada a [0, 1] [F2B2]
+
+**Siguen siendo TRES términos** (enunciado §4.1): núcleo/borde y la distancia a la fractura
+entran DENTRO de ``seg``, no como un cuarto término. Cambiar la composición de ``seg`` obliga a
+recalibrar los λ.
 
 La distancia de separación NO es un término: es una medición posterior sobre las máscaras.
 Los λ salen de ``calibrate_lambdas`` (balance de normas de gradiente sobre la última capa
@@ -26,8 +34,19 @@ import torch.nn.functional as F
 
 from pengwin.detection.boxes import paired_iou_giou
 from pengwin.detection.grid import assign_targets, ltrb_to_boxes
+from pengwin.models.heads import DEFAULT_SEG_OUTPUTS
 
 TERMS = ("cls", "det", "seg")
+
+# 1/√frecuencia de fondo / núcleo / borde, normalizado a fondo = 1. Medido sobre los cortes con
+# hueso de 12 casos del caché (fracciones 0,96642 / 0,03326 / 0,00032; hueso:borde = 1:104).
+CORE3_CE_WEIGHTS = (1.0, 5.4, 54.8)
+
+# [F2B2] Umbral de la Huber sobre la distancia NORMALIZADA (0,1 · 8 mm = 0,8 mm). Justo por encima
+# del error propio de la etiqueta: se remuestreó a 256² con vecino más cercano, así que la posición
+# de la superficie de fractura trae ±0,5 vóxel ≈ ±0,6 mm. Por debajo de ese ruido la pérdida es
+# cuadrática (el gradiente se apaga en vez de pelear con el ruido) y por encima es L1 (robusta).
+DIST_HUBER_BETA = 0.1
 
 
 def sigmoid_focal_loss(logits: torch.Tensor, targets: torch.Tensor, alpha: float = 0.25, gamma: float = 2.0) -> torch.Tensor:
@@ -70,7 +89,10 @@ class MultiTaskLoss(nn.Module):
         lc = cfg["loss"]
         self.stride = int(cfg["model"].get("det_stride", 8))
         self.register_buffer("ce_weights", torch.tensor(lc.get("seg_ce_weights", [1.0, 1.0, 1.0, 1.0]), dtype=torch.float32))
+        self.register_buffer("core3_weights", torch.tensor(lc.get("core3_ce_weights", CORE3_CE_WEIGHTS), dtype=torch.float32))
+        self.seg_outputs = tuple(cfg["model"].get("seg_outputs", DEFAULT_SEG_OUTPUTS) or DEFAULT_SEG_OUTPUTS)
         self.edge_pos_weight = float(lc.get("edge_pos_weight", 21.0))
+        self.dist_huber_beta = float(lc.get("dist_huber_beta", DIST_HUBER_BETA))   # 0 = L1 pura [F2B2]
         self.focal = {"alpha": lc.get("focal_alpha", 0.25), "gamma": lc.get("focal_gamma", 2.0),
                       "center_radius": lc.get("center_radius", 1.5)}
         self.terms = tuple(lc.get("terms", TERMS))
@@ -86,18 +108,41 @@ class MultiTaskLoss(nn.Module):
         # Detección
         parts.update(detection_loss(out["det_scores"], out["det_ltrb"], batch, self.stride, self.focal))
 
-        # Segmentación semántica + borde de fractura
+        # Segmentación: semántica de 4 clases (etapa 1) + la representación de fragmentos (etapa 2)
         seg = out["seg_logits"].float()
         sem = batch["semantic"]
         probs = seg.softmax(1)
         onehot = F.one_hot(sem, seg.shape[1]).permute(0, 3, 1, 2).float()
         parts["seg_ce"] = F.cross_entropy(seg, sem, weight=self.ce_weights)
         parts["seg_dice"] = soft_dice_loss(probs[:, 1:], onehot[:, 1:])          # Dice sin el fondo
-        edge = out["edge_logits"].float()
-        pw = torch.tensor(self.edge_pos_weight, device=edge.device)
-        parts["edge_bce"] = F.binary_cross_entropy_with_logits(edge, batch["edge"], pos_weight=pw)
-        parts["edge_dice"] = soft_dice_loss(torch.sigmoid(edge), batch["edge"])
-        parts["seg"] = parts["seg_ce"] + parts["seg_dice"] + parts["edge_bce"] + parts["edge_dice"]
+        parts["seg"] = parts["seg_ce"] + parts["seg_dice"]
+        if "fracture_edge" in self.seg_outputs:
+            edge = out["edge_logits"].float()
+            pw = torch.tensor(self.edge_pos_weight, device=edge.device)
+            parts["edge_bce"] = F.binary_cross_entropy_with_logits(edge, batch["edge"], pos_weight=pw)
+            parts["edge_dice"] = soft_dice_loss(torch.sigmoid(edge), batch["edge"])
+            parts["seg"] = parts["seg"] + parts["edge_bce"] + parts["edge_dice"]
+        if "core3" in self.seg_outputs:
+            # Núcleo como clase propia: el núcleo y el borde compiten en el mismo softmax, así la
+            # red tiene que dejar hueco entre fragmentos en vez de marcar una superficie fina.
+            core = out["core_logits"].float()
+            tgt = batch["core3"]
+            hot3 = F.one_hot(tgt, core.shape[1]).permute(0, 3, 1, 2).float()
+            parts["core3_ce"] = F.cross_entropy(core, tgt, weight=self.core3_weights)
+            parts["core3_dice"] = soft_dice_loss(core.softmax(1)[:, 1:], hot3[:, 1:])   # núcleo y borde
+            parts["seg"] = parts["seg"] + parts["core3_ce"] + parts["core3_dice"]
+        if "dist" in self.seg_outputs:
+            # Regresión densa de la distancia a la fractura, ENMASCARADA AL HUESO: fuera del hueso
+            # la distancia no existe y supervisar ese 96 % de píxeles con un 0 constante volvería a
+            # meter el desbalance que este objetivo elimina. El promedio es por vóxel de hueso, así
+            # que la escala no depende de cuánto hueso traiga el corte.
+            pred = torch.sigmoid(out["dist_logits"].float())          # [0, 1] por construcción
+            tgt = batch["dist"].float()                               # ya normalizado por dist_max_mm
+            hueso = (sem > 0)[:, None].float()
+            b = self.dist_huber_beta
+            err = F.smooth_l1_loss(pred, tgt, reduction="none", beta=b) if b > 0 else (pred - tgt).abs()
+            parts["dist_reg"] = (err * hueso).sum() / hueso.sum().clamp(min=1.0)
+            parts["seg"] = parts["seg"] + parts["dist_reg"]
 
         parts["total"] = sum(self.lambdas[k] * parts[k] for k in self.terms)
         return parts

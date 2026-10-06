@@ -329,3 +329,114 @@ Lectura honesta:
 - La red casi no usa el CBAM del bloque 3: γ = 0,18, y apagarlo no cambia nada.
 - El CBAM del bloque 4 sí se usa, con γ negativo: y = 2,9·x − 1,9·CBAM(x), es decir, resalta lo que la atención atenuaría (un realce de contraste).
 - Lo indispensable es el bloque residual 4 y el contexto profundo que entra al cuello.
+
+## 11. Ajuste de hiperparámetros (semana 11)
+
+Campaña de ajuste objetivo en ANTON (DGX Spark GB10). Detalle completo y CSV/JSON por experimento en
+`reports/tuning/` (`RESUMEN.md`, `PROGRESO.md`).
+
+**Protocolo.** Selección **solo** por validación cruzada por paciente: k = 5 sobre los 85 casos de
+train+val (`reports/tuning/cv_folds.json`, `scripts/cv_folds.py`, estratificado por nº de
+secundarios). **El test de 15 pacientes no se usó para elegir nada** y se miró una sola vez al final.
+Regla fijada antes de ver resultados: si |Δ de la media entre folds| < la desviación entre folds, no
+hay ganador y se queda la opción actual. λ recalibrados con `scripts/calibrate_lambdas.py` en cada
+candidato y cada fold; se evaluó siempre la última época, igual que `v2_last`.
+
+**Escala de ruido** (`c00_base` @20 épocas, 5 folds, media ± desv. entre folds):
+
+| Métrica | Media | Desv. entre folds |
+|---|---|---|
+| Dice por fragmento | 0,7429 | **0,0449** |
+| mAP@0.50 | 0,9784 | 0,0034 |
+| mAP@[.50:.95] | 0,8439 | 0,0096 |
+| IoU de caja | 0,9111 | 0,0046 |
+| Dice de región | 0,9655 | 0,0026 |
+| F1 / AUC | 0,9905 / 0,9987 | 0,0011 / 0,0004 |
+
+La desviación del Dice por fragmento (0,045) es la barra de toda la campaña: la métrica la domina si
+los secundarios se recuperan o no, y eso varía mucho por paciente.
+
+### 11.1 Posproceso: los cinco parámetros se quedan como estaban
+
+Tres etapas sobre los 5 folds (grilla gruesa → refinamiento), sin reentrenar, sobre las predicciones
+fuera de fold (`scripts/cv_predict.py`).
+
+| Etapa | Mejor | Segundo | Actual | Δ mejor−actual | ¿Gana? |
+|---|---|---|---|---|---|
+| `seed_depth_mm` × `edge_threshold` | 5 / 0,1 → 0,7453 | 5 / 0,3 → 0,7430 | **5 / 0,2 → 0,7429** | +0,0024 | no (0,05 σ) |
+| `seed_depth_mm` × `edge_weight` | 5,5 → 0,7474 | 5 / 20 → 0,7430 | **5 / 5 → 0,7430** | +0,0044 | no (0,10 σ) |
+| `seed_min_cm3` | 0,002 → 0,7441 | 0,01 → 0,7430 | **0,02 → 0,7430** | +0,0011 | no (0,02 σ) |
+
+En las etapas 2 y 3 el primer puesto por Dice **pierde en los dos desempates** (IoU y % de
+secundarios recuperados): no hay señal. Lo que sí quedó medido:
+
+- **`instance_method: edt` vale +0,245 de Dice por fragmento** frente a `edge` (0,7430 contra 0,4983)
+  y 59,5 % contra 4,9 % de secundarios recuperados. Confirma por CV lo que §10.7 vio en val, y es la
+  mejora más grande del proyecto en esta métrica.
+- `edge_threshold` es irrelevante (0,0055 entre 0,1 y 0,5) y **`edge_weight` es inerte** (≤ 0,0002
+  entre 0 y 20): el watershed no puede rescatar una cabeza de borde floja, toda la separación la hace
+  la geometría (−d).
+
+### 11.2 Dónde está el techo, y de quién es la culpa
+
+Alimentando el mismo posproceso con región y/o borde del *ground truth* (5 folds):
+
+| Región | Borde | Dice fragmento | `seed_depth_mm` óptimo | rec. secundarios |
+|---|---|---|---|---|
+| predicha | predicho | 0,7430 ± 0,0449 | 5 | 59,5 % |
+| **GT** | predicho | 0,7697 ± 0,0368 (+0,027) | 5 | 59,6 % |
+| predicha | **GT** | **0,9024 ± 0,0110 (+0,159)** | **3** | **90,6 %** |
+| GT | GT | 0,9952 ± 0,0014 (+0,252) | 1,5 | 100 % |
+
+- **Arreglar el borde vale 6 veces más que arreglar la región.** "La región rellena las grietas" es
+  real pero menor: con región perfecta la recuperación de secundarios no se mueve (59,6 % vs 59,5 %).
+- El método `edge` tiene **techo 0,847** incluso con borde perfecto, por debajo del objetivo 0,85 del
+  enunciado: otra razón para `edt`.
+- `seed_depth_mm` **no es un umbral de ruido, es un detector geométrico de grietas que compensa al
+  borde**: su óptimo pasa de 5 (borde predicho) a 3 (borde GT) a 1,5 (todo GT).
+- **Modo de fallo del borde: cobertura, no calibración.** Marca ~20 % de la superficie de fractura
+  (recall 0,193 a umbral 0,2) y bajar el umbral a 0,05 solo lo lleva a 0,213: el 80 % que falta está
+  en ≈ 0. Esto explica las tres anomalías del §11.1.
+
+### 11.3 Entrenamiento: ningún candidato supera el ruido
+
+- **Cribado:** 11 candidatos a 12 épocas en el fold 0 (pos_weight del borde, dilatación del borde,
+  sobremuestreo, lr, dropout espacial, aumentación fuerte, `backbone_lr_factor`). Suelo de ruido con
+  4 semillas: σ = 0,0097.
+  - Ninguno lo supera con margen.
+  - `c10` (`backbone_lr_factor` 0,3) **empeora 4,3σ**: valida el afinado completo del backbone.
+- **Confirmación (P4, 5 folds @20, emparejado por fold):**
+  - `c05` (sobremuestreo ×3 de cortes con secundarios): +0,0093 = 1,61σ, 3/5 folds. No se adopta.
+  - El control de semilla da Δ −0,0000 con σ = 0,0130.
+- **Resultado en test:** sin configuración ganadora, sigue el de `v2_last` (0,725 / 0,671).
+- El cuello de botella no es un hiperparámetro, es la cobertura de la cabeza de borde (§11.2).
+
+## 12. Fase 2: arquitectura y transfer learning
+
+Detalle en `reports/tuning/fase2/` (`RESUMEN_FASE2.md`, `REGISTRO.md` con el pre-registro,
+`EXPERIMENTOS.csv`). Comparaciones emparejadas por fold contra `c00_base`@20 (σ = 0,0130) y réplica
+de semilla antes de adoptar cualquier cosa.
+
+| experimento | Dice frag | Δ | prueba | decisión |
+|---|---|---|---|---|
+| sin transfer learning (2 semillas, 10 pares) | 0,759 / 0,752 | +0,0105 | t = 1,19, 6/10 | sin efecto |
+| núcleo/borde de 3 clases (`core3`) | 0,673 | −0,072 | — | rechazado |
+| regresión de distancia al borde (`dist`) | 0,504 | −0,241 | — | rechazado |
+| sin CBAM (ablación en CV) | 0,737 | −0,0088 | t = −0,92, 1/5 | sin efecto medible |
+| posproceso h-máxima | 0,760 | +0,0147 | principal −0,043 | rechazado |
+| posproceso híbrido `edt` + h-máxima | 0,772 / 0,764 | +0,027 / +0,020 | principal −0,0093 / **−0,0112** | no confirma la réplica |
+
+- **Transfer learning del Taller 3:** ni ayuda ni estorba en fragmentos. El efecto aparente de la
+  primera semilla lo aportaba un solo fold, y ese mismo fold se repite en la segunda semilla:
+  heterogeneidad entre pacientes. Es la ablación con/sin TL que pide el enunciado, ahora en CV.
+- **Representaciones nuevas del borde:** las dos fallan por la representación, no por el
+  entrenamiento. Evaluados con el `edt` viejo, sus mismos checkpoints quedan iguales o algo peores
+  que el base. El oráculo explica por qué: incluso con núcleo perfecto hace falta erosión
+  geométrica, porque una superficie de fractura de 2 px no desconecta del todo dos fragmentos que
+  se tocan en 3D.
+- **Híbrido `edt_hmax`:** recupera secundarios (Dice secundario +0,05/+0,07 en 5/5 folds en los dos
+  OOF), pero cuesta ≈ −0,010 de Dice principal y +0,5-0,7 mm de MAE de distancia. Falló el
+  guardarraíl pre-registrado en la réplica y no se adopta. Queda implementado
+  (`instance_method: edt_hmax`) como opción documentada.
+- **Arquitectura final = la de la semana 10.** Las métricas de fragmento no alcanzan el objetivo
+  (test 0,725 / 0,671 contra 0,85 / 0,70). Clasificación y detección siguen cumpliendo con margen.

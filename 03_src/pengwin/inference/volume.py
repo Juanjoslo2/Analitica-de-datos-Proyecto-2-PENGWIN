@@ -7,37 +7,104 @@ redimensionado y el recorte para volver a la grilla del .mha, donde se mide en m
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Sequence, Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from scipy import ndimage as ndi
 
 from pengwin.data.dataset import context_stack
 from pengwin.data.slice_cache import CHUNK_Z, load_case_cache
+from pengwin.data.targets import DIST_MAX_MM
 from pengwin.detection.grid import decode
+from pengwin.models.heads import SegmentationHead
+
+
+# TTA (semana 10, 2026-10-06): transformaciones (escala, rotación en grados, traslación x, y en
+# fracción del lado) dentro del rango de ``augment`` de base.yaml, así el modelo las vio al entrenar.
+# Sin volteo: el modelo distingue coxal izquierdo y derecho [DD §1].
+TTA_DEFAULT: Tuple[Tuple[float, float, float, float], ...] = (
+    (1.0, 0.0, 0.0, 0.0), (0.92, 0.0, 0.0, 0.0), (1.08, 0.0, 0.0, 0.0), (1.0, 8.0, 0.0, 0.0), (1.0, -8.0, 0.0, 0.0),
+)
+
+
+def _theta(scale: float, rot_deg: float, tx: float, ty: float) -> torch.Tensor:
+    """Matriz 3×3 en coordenadas normalizadas [-1, 1] de ``affine_grid`` (salida -> entrada).
+
+    Muestrear la imagen con esta matriz la agranda ``scale`` veces, la gira ``rot_deg`` y la
+    desplaza (tx, ty) fracciones del lado.
+    """
+    a = math.radians(rot_deg)
+    c, s = math.cos(a) / scale, math.sin(a) / scale
+    return torch.tensor([[c, -s, -2 * tx], [s, c, -2 * ty], [0.0, 0.0, 1.0]], dtype=torch.float32)
+
+
+def _warp(x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
+    grid = F.affine_grid(theta[:2][None].expand(x.shape[0], 2, 3).to(x), list(x.shape), align_corners=False)
+    return F.grid_sample(x, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+
+
+def _tta_forward(model, x: torch.Tensor, tta: Sequence[Tuple[float, float, float, float]], amp: bool, device) -> Dict:
+    """Promedio de P(región) y P(borde) sobre las transformaciones de ``tta``.
+
+    Cada pasada transforma la entrada, predice y devuelve las probabilidades a la posición
+    original con la transformación inversa. Los píxeles que una pasada deja fuera del lienzo no
+    cuentan en su promedio (peso = cobertura). Cajas y clasificación salen de la primera pasada,
+    que debe ser la identidad: la detección no cambia con TTA.
+    """
+    sem_acc = edge_acc = peso = None
+    first = None
+    for k, t in enumerate(tta):
+        th = _theta(*t)
+        xi = x if k == 0 and t == (1.0, 0.0, 0.0, 0.0) else _warp(x, th)
+        with torch.amp.autocast(device_type=device.type, dtype=torch.float16, enabled=amp):
+            out = model(xi)
+        if first is None:
+            first = out
+        probs = torch.cat([out["seg_logits"].float().softmax(1), torch.sigmoid(out["edge_logits"].float())], 1)
+        cov = torch.ones_like(probs[:, :1])
+        if xi is not x:
+            inv = torch.linalg.inv(th)
+            probs, cov = _warp(probs, inv), _warp(cov, inv)
+        sem_acc = probs[:, :-1] * cov if sem_acc is None else sem_acc + probs[:, :-1] * cov
+        edge_acc = probs[:, -1:] * cov if edge_acc is None else edge_acc + probs[:, -1:] * cov
+        peso = cov if peso is None else peso + cov
+    peso = peso.clamp_min(1e-6)
+    return {**first, "tta_sem": sem_acc / peso, "tta_edge": edge_acc / peso}
 
 
 @torch.no_grad()
 def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: torch.device,
-                 batch_size: int = 16) -> Dict:
+                 batch_size: int = 16, tta: Sequence[Tuple[float, float, float, float]] | None = None) -> Dict:
     """Corre el modelo sobre todos los cortes de un caso.
 
     Devuelve en la grilla del modelo (Z, 256, 256):
         semantic  uint8    región por píxel (0 fondo, 1 SA, 2 LI, 3 RI)
         edge      float16  probabilidad de borde de fractura
+        core      float16  probabilidad de núcleo, SOLO si el modelo tiene la salida ``core3``
+        dist      float16  distancia a la superficie de fractura en mm (0..``loss.dist_max_mm``),
+                           SOLO si el modelo tiene la salida ``dist`` [F2B2]
         cls       float32  (Z, 3) probabilidad de presencia de cada región
         boxes     lista de Z dicts {boxes, scores, labels} (numpy)
     y el ``meta`` del caché.
+
+    ``tta``: lista de transformaciones (escala, rotación °, tx, ty) para promediar ``semantic`` y
+    ``edge`` (``TTA_DEFAULT`` es la de 5 pasadas). ``None`` = una sola pasada, como siempre.
+    Con TTA no se calculan ``core`` ni ``dist``.
     """
     image, _, meta = load_case_cache(Path(cache_dir) / case_id)
     model.eval()
     pp = cfg.get("postprocess", {})
     stride = int(cfg["model"].get("det_stride", 8))
+    dist_max_mm = float(cfg.get("loss", {}).get("dist_max_mm", DIST_MAX_MM))
     Z, H, W = image.shape
     semantic = np.zeros((Z, H, W), np.uint8)
     edge = np.zeros((Z, H, W), np.float16)
+    core: np.ndarray | None = None          # se crea solo si el modelo tiene la salida core3
+    dist: np.ndarray | None = None          # ídem con la salida dist [F2B2]
     cls = np.zeros((Z, 3), np.float32)
     boxes = []
     amp = device.type == "cuda"
@@ -45,15 +112,35 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
         zs = range(z0, min(z0 + batch_size, Z))
         x = np.stack([context_stack(image, z, meta["context_offset"]) for z in zs]).astype(np.float32) / 255.0
         x = torch.from_numpy(x).to(device)
-        with torch.amp.autocast(device_type=device.type, dtype=torch.float16, enabled=amp):
-            out = model(x)
-        semantic[z0:z0 + len(zs)] = out["seg_logits"].argmax(1).cpu().numpy().astype(np.uint8)
-        edge[z0:z0 + len(zs)] = torch.sigmoid(out["edge_logits"].float())[:, 0].cpu().numpy().astype(np.float16)
+        if tta:
+            out = _tta_forward(model, x, tta, amp, device)
+            semantic[z0:z0 + len(zs)] = out["tta_sem"].argmax(1).cpu().numpy().astype(np.uint8)
+            edge[z0:z0 + len(zs)] = out["tta_edge"][:, 0].cpu().numpy().astype(np.float16)
+            out = {k: v for k, v in out.items() if k not in ("core_logits", "dist_logits")}
+        else:
+            with torch.amp.autocast(device_type=device.type, dtype=torch.float16, enabled=amp):
+                out = model(x)
+            semantic[z0:z0 + len(zs)] = out["seg_logits"].argmax(1).cpu().numpy().astype(np.uint8)
+            edge[z0:z0 + len(zs)] = torch.sigmoid(out["edge_logits"].float())[:, 0].cpu().numpy().astype(np.float16)
+        if "core_logits" in out:                        # P(núcleo) de la salida de 3 clases [F2B1]
+            if core is None:
+                core = np.zeros((Z, H, W), np.float16)
+            core[z0:z0 + len(zs)] = out["core_logits"].float().softmax(1)[:, 1].cpu().numpy().astype(np.float16)
+        if "dist_logits" in out:                        # distancia a la fractura en mm [F2B2]
+            if dist is None:
+                dist = np.zeros((Z, H, W), np.float16)
+            mm = SegmentationHead.dist_mm_from_logits(out["dist_logits"], dist_max_mm)
+            dist[z0:z0 + len(zs)] = mm[:, 0].cpu().numpy().astype(np.float16)
         cls[z0:z0 + len(zs)] = torch.sigmoid(out["cls_logits"].float()).cpu().numpy()
         dets = decode(out["det_scores"], out["det_ltrb"], stride, W, pp.get("det_score_threshold", 0.3),
                       pp.get("nms_iou", 0.5), pp.get("max_boxes_per_class", 1))
         boxes += [{k: v.cpu().numpy() for k, v in d.items()} for d in dets]
-    return {"semantic": semantic, "edge": edge, "cls": cls, "boxes": boxes, "meta": meta}
+    res = {"semantic": semantic, "edge": edge, "cls": cls, "boxes": boxes, "meta": meta}
+    if core is not None:
+        res["core"] = core
+    if dist is not None:
+        res["dist"] = dist
+    return res
 
 
 def to_native(vol: np.ndarray, meta: Dict, order: int = 0) -> np.ndarray:
