@@ -1,0 +1,28 @@
+{
+ "checkpoint": "checkpoints\\v2_last\\best.pth",
+ "caso": "001",
+ "cpu": "Intel64 Family 6 Model 141 Stepping 1, GenuineIntel",
+ "torch_threads": 8,
+ "tta": "5",
+ "cpu_fp32": {
+  "media_ms": 308.64873299811734,
+  "p50_ms": 305.8453499979805,
+  "p95_ms": 358.63102998700924,
+  "n": 100
+ },
+ "gpu": "NVIDIA GeForce RTX 3060 Laptop GPU",
+ "gpu_amp": {
+  "media_ms": 37.92427800159203,
+  "p50_ms": 36.94340000220109,
+  "p95_ms": 43.80001000099582,
+  "n": 100
+ },
+ "gpu_fp32": {
+  "media_ms": 33.79518100031419,
+  "p50_ms": 32.19769999850541,
+  "p95_ms": 42.073144992173184,
+  "n": 100
+ },
+ "gpu_volumen_completo_s": 7.408378399995854,
+ "cortes_volumen": 401
+}

@@ -73,3 +73,10 @@ def test_deteccion_y_clasificacion_salen_de_la_pasada_sin_transformar():
         tta = _tta_forward(model, x, TTA_DEFAULT, amp=False, device=torch.device("cpu"))
     assert torch.equal(tta["cls_logits"], uno["cls_logits"])
     assert torch.equal(tta["det_scores"], uno["det_scores"])
+
+
+def test_conjuntos_de_tta():
+    from pengwin.inference.volume import TTA_AMPLIO, TTA_SETS
+
+    assert TTA_SETS["5"] == TTA_DEFAULT and TTA_SETS["9"] == TTA_AMPLIO
+    assert len(TTA_AMPLIO) == 9 and TTA_AMPLIO[0] == (1.0, 0.0, 0.0, 0.0)   # la primera es la identidad

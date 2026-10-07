@@ -1,0 +1,17 @@
+# Configuración final de la semana 10 (2026-10-06). Mismo modelo y mismo entrenamiento que base.yaml
+# (checkpoint v2_last); cambia solo la inferencia, elegida por validación cruzada por paciente
+# (04_notebook/03_semana10_ajuste.ipynb, secciones 6, 9 y 10):
+#   - TTA de 5 pasadas (escala 0,92/1,08 y rotación ±8°, dentro de la aumentación de entrenamiento):
+#     promedia P(región) y P(borde). La detección y la clasificación no cambian.
+#   - semillas edt + h-máxima donde edt no deja semilla (F2C2), h = 1,5 mm.
+# CV (5 folds, 2 semillas): Dice fragmento +0,047 / +0,037, IoU fragmento +0,034 / +0,039.
+base: base.yaml
+
+inference:
+  tta: 5                                 # pengwin.inference.volume.TTA_SETS["5"]
+
+postprocess:
+  instance_method: edt_hmax
+  seed_depth_mm: 5.0
+  edge_threshold: 0.1
+  hmax_h_mm: 1.5

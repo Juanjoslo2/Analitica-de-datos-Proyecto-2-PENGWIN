@@ -29,7 +29,7 @@ sys.path.insert(0, str(REPO / "03_src"))
 
 from pengwin.data.dataset import PengwinSlices  # noqa: E402
 from pengwin.data.targets import DIST_MM_PER_LEVEL  # noqa: E402
-from pengwin.inference.volume import TTA_DEFAULT, predict_case  # noqa: E402
+from pengwin.inference.volume import TTA_SETS, predict_case  # noqa: E402
 from pengwin.losses.losses import MultiTaskLoss  # noqa: E402
 from pengwin.models.pengwin_net import PengwinNet  # noqa: E402
 from pengwin.training.engine import evaluate  # noqa: E402
@@ -42,7 +42,8 @@ def main() -> None:
     ap.add_argument("--folds-file", type=Path, required=True)
     ap.add_argument("--fold", type=int, required=True)
     ap.add_argument("--out-dir", type=Path, required=True)
-    ap.add_argument("--tta", action="store_true", help="promedia región y borde con TTA_DEFAULT (volume.py)")
+    ap.add_argument("--tta", nargs="?", const="5", default=None, choices=list(TTA_SETS),
+                    help="TTA: promedia región y borde sobre 5 (por defecto) o 9 transformaciones (volume.py)")
     ap.add_argument("--skip-metrics", action="store_true", help="no recalcula metricas.json de det/cls (no cambian con TTA)")
     args = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,7 +54,7 @@ def main() -> None:
     cases = json.loads(args.folds_file.read_text(encoding="utf-8"))["folds"][args.fold]
     args.out_dir.mkdir(parents=True, exist_ok=True)
     for cid in cases:
-        p = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_DEFAULT if args.tta else None)
+        p = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_SETS[args.tta] if args.tta else None)
         arrays = {"semantic": p["semantic"], "edge": np.round(p["edge"].astype(np.float32) * 255).astype(np.uint8)}
         if "core" in p:          # modelos con la salida core3: P(núcleo)·255 [F2B1]
             arrays["core"] = np.round(p["core"].astype(np.float32) * 255).astype(np.uint8)

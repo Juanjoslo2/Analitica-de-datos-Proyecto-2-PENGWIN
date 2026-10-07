@@ -36,7 +36,7 @@ sys.path.insert(0, str(REPO / "03_src"))
 from pengwin.data.data_loader import get_dataset_pairs, load_and_standardize_mha  # noqa: E402
 from pengwin.data.dataset import read_split  # noqa: E402
 from pengwin.evaluation.fragment_metrics import distance_comparison, match_fragments, summarize  # noqa: E402
-from pengwin.inference.volume import TTA_DEFAULT, predict_case, to_native  # noqa: E402
+from pengwin.inference.volume import TTA_SETS, predict_case, to_native  # noqa: E402
 from pengwin.models.pengwin_net import PengwinNet  # noqa: E402
 from pengwin.postprocess.instances import instance_kwargs, resolve_postprocess, separate_instances  # noqa: E402
 
@@ -59,7 +59,8 @@ def main() -> None:
     ap.add_argument("--core-threshold", type=float, default=None, help="method=core3: P(núcleo) > umbral")
     ap.add_argument("--core-seed-depth-mm", type=float, default=None, help="method=core3: erosión extra del núcleo")
     ap.add_argument("--tag", default="", help="sufijo del nombre del reporte (p. ej. _edt)")
-    ap.add_argument("--tta", action="store_true", help="promedia región y borde con TTA_DEFAULT (volume.py)")
+    ap.add_argument("--tta", nargs="?", const="5", default=None, choices=list(TTA_SETS),
+                    help="TTA: promedia región y borde sobre 5 (por defecto) o 9 transformaciones (volume.py)")
     args = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ck = torch.load(args.ckpt, map_location="cpu", weights_only=False)
@@ -72,7 +73,10 @@ def main() -> None:
                               "seed_depth_mm": args.seed_depth_mm, "seed_min_cm3": args.seed_min_cm3,
                               "edge_weight": args.edge_weight, "core_threshold": args.core_threshold,
                               "core_seed_depth_mm": args.core_seed_depth_mm})
-    print("posproceso:", pp, flush=True)
+    # TTA: la CLI manda; si no se pasa, se usa ``inference.tta`` de la config (p. ej. configs/tuned.yaml)
+    tta_key = args.tta or (load_config(args.config).get("inference") or {}).get("tta")
+    tta_key = str(tta_key) if tta_key else None
+    print("posproceso:", pp, "· TTA:", tta_key or "no", flush=True)
     model = PengwinNet(cfg["model"]).to(device).eval()
     model.load_state_dict(ck["model"])
     # Solo se necesitan las etiquetas nativas (la imagen sale del caché): basta con PENGWIN_CT_train_labels
@@ -83,7 +87,7 @@ def main() -> None:
     frag_rows, dist_rows, per_case = [], [], {}
     for k, cid in enumerate(cases, 1):
         t0 = time.time()
-        pred = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_DEFAULT if args.tta else None)
+        pred = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_SETS[tta_key] if tta_key else None)
         meta = pred["meta"]
         grid_spacing = (meta["spacing_zyx"][0], meta["pixel_mm"], meta["pixel_mm"])
         # ``core`` solo existe con model.seg_outputs: [..., core3] y ``dist`` con [..., dist];
@@ -116,7 +120,7 @@ def main() -> None:
     pd.DataFrame(dist_rows).to_csv(out_dir / f"{name}_distancias.csv", index=False)
     total = summarize(frag_rows, dist_rows)
     (out_dir / f"{name}.json").write_text(json.dumps({"checkpoint": str(args.ckpt), "split": args.split,
-                                                      "postproceso": pp,
+                                                      "postproceso": pp, "tta": tta_key,
                                                       "global": total, "por_caso": per_case}, indent=1), encoding="utf-8")
     print("\nResumen", name)
     print(pd.Series(total).round(3).to_string())

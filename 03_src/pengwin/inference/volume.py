@@ -29,6 +29,11 @@ from pengwin.models.heads import SegmentationHead
 TTA_DEFAULT: Tuple[Tuple[float, float, float, float], ...] = (
     (1.0, 0.0, 0.0, 0.0), (0.92, 0.0, 0.0, 0.0), (1.08, 0.0, 0.0, 0.0), (1.0, 8.0, 0.0, 0.0), (1.0, -8.0, 0.0, 0.0),
 )
+# Variante de 9 pasadas: las 5 anteriores más traslaciones de ±4 % del lado en x y en y.
+TTA_AMPLIO: Tuple[Tuple[float, float, float, float], ...] = TTA_DEFAULT + (
+    (1.0, 0.0, 0.04, 0.0), (1.0, 0.0, -0.04, 0.0), (1.0, 0.0, 0.0, 0.04), (1.0, 0.0, 0.0, -0.04),
+)
+TTA_SETS = {"5": TTA_DEFAULT, "9": TTA_AMPLIO}
 
 
 def _theta(scale: float, rot_deg: float, tx: float, ty: float) -> torch.Tensor:
