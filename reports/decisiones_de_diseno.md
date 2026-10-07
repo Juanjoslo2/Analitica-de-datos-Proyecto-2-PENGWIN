@@ -440,3 +440,25 @@ de semilla antes de adoptar cualquier cosa.
   (`instance_method: edt_hmax`) como opción documentada.
 - **Arquitectura final = la de la semana 10.** Las métricas de fragmento no alcanzan el objetivo
   (test 0,725 / 0,671 contra 0,85 / 0,70). Clasificación y detección siguen cumpliendo con margen.
+
+## 13. Cribado y4xul: resolución completa, pooling y salida principal/secundario
+
+Detalle, pre-registro y tablas en `reports/tuning/y4xul/` (`REGISTRO.md`, `RESUMEN.md`). Mismo
+protocolo que §11-12: selección solo por validación cruzada, comparación emparejada por fold y test
+sin tocar.
+
+| cambio | Δ Dice frag (5 folds @20) | prueba | decisión |
+|---|---|---|---|
+| salto a resolución completa (`seg_fullres_skip`) | +0,0131 | t = 4,23, 5/5 | **recomendado**: sin coste |
+| + pooling promedio (`pool: avg`) | peor que el salto solo (cribado) | — | descartado |
+| + salida `role3` con posproceso `role` | +0,0354 | t = 2,05, 4/5 | candidato: cuesta mAP −0,0245 y MAE de distancia +0,8 mm |
+
+- El decodificador pasaba de stride 2 a 1 con una interpolación; ahora puede recibir el bloque 1
+  antes de su pooling. La mejora es pequeña y consistente, pero **no** llega por la cabeza de borde,
+  cuyo Dice en validación no cambia.
+- `role3` clasifica cada vóxel de hueso como del fragmento principal o de un secundario, dentro del
+  término `seg`. Protege el principal (+0,015) y reduce la variación entre folds a la mitad, pero
+  recupera menos secundarios pequeños que `edt`.
+- En validación cruzada el IoU por fragmento cruza 0,70 (0,703-0,713); el Dice por fragmento queda en
+  0,765-0,787 contra el objetivo de 0,85.
+- `base.yaml` no se ha cambiado: la adopción es decisión del equipo.
