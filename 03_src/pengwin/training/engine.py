@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Sequence
 
 import numpy as np
 import torch
@@ -120,13 +120,18 @@ def save_checkpoint(path: Path, model, optimizer=None, epoch: int = 0, metrics: 
                 "epoch": epoch, "metrics": metrics or {}, "cfg": cfg}, path)
 
 
-def selection_score(metrics: Dict[str, float]) -> float:
+SELECTION_METRICS = ("mAP@[.50:.95]", "dice_hueso", "cls_f1_macro")
+
+
+def selection_score(metrics: Dict[str, float], keys: Sequence[str] | None = None) -> float:
     """Criterio para guardar el mejor checkpoint: media de mAP@[.50:.95], Dice de hueso y F1.
 
     Semana 10: antes usaba mAP@0.5, que se satura en ~0,98 desde la época 15 y hacía elegir
     épocas tempranas (v2: época 22 contra 39, con 0,016 menos de mAP@[.50:.95] en test).
     """
-    vals = [metrics.get("mAP@[.50:.95]"), metrics.get("dice_hueso"), metrics.get("cls_f1_macro")]
+    # [y4xul] ``keys`` = ``train.selection_metrics``: esas tres se saturan y ninguna mira los
+    # fragmentos, que es lo que falla; se puede añadir p. ej. ``role_dice_secundario``.
+    vals = [metrics.get(k) for k in (keys or SELECTION_METRICS)]
     vals = [v for v in vals if v is not None and not np.isnan(v)]
     return float(np.mean(vals)) if vals else 0.0
 

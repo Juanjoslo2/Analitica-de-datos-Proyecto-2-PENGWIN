@@ -48,6 +48,16 @@ def main() -> None:
             if csv.exists():
                 fila.update(mejor(csv, metodo))
         filas.append(fila)
+        # misma corrida evaluada en su mejor época según ``train.selection_metrics``
+        best = {}
+        for metodo in PARAMS:
+            csv = TUN / f"{name}best_{metodo}.csv"
+            if csv.exists():
+                best.update(mejor(csv, metodo))
+        if best:
+            info = REPO / "reports" / "train" / f"{name}.json"
+            ep = json.loads(info.read_text(encoding="utf-8"))["mejor"].get("epoch") if info.exists() else None
+            filas.append({"corrida": f"{name} [mejor ép. {ep}]", **best})
     pd.set_option("display.width", 250)
     pd.set_option("display.max_columns", 40)
     df = pd.DataFrame(filas)

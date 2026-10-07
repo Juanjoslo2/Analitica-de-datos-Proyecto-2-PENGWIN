@@ -106,3 +106,30 @@ Aplicando la regla sin cambiarla (2σ = 0,0194):
 
 Ningún candidato alcanza el objetivo (0,85 / 0,70). Se lanza la confirmación de y0, y1 e y4: 5
 folds, 20 épocas, emparejada por fold. El test no se ha tocado.
+
+## Segunda ronda: Dice ponderado de la clase secundaria (pre-registro, 2026-10-07)
+
+Escrito antes de lanzar. Motivo: en la confirmación el método `role` recupera solo el 55 % de los
+secundarios; su debilidad es la cobertura de la clase secundaria.
+
+| id | config | cambia respecto a y4 |
+|---|---|---|
+| y5 | `y5_role_dw3.yaml` | Dice de `role3` ponderado (principal 1, secundario 3) |
+| y6 | `y6_role_dw6.yaml` | ídem con secundario 6 |
+
+    L_papel = 1 − (w_p·D_principal + w_s·D_secundario) / (w_p + w_s)
+    D_c = (2·Σ p_c·g_c + ε) / (Σ p_c + Σ g_c + ε)
+
+Sigue dentro del término `seg`; la pérdida es de tres términos y los λ se recalibran.
+
+Además, sin coste de entrenamiento: las dos corridas eligen su mejor checkpoint con
+`train.selection_metrics` = mAP@[.50:.95], Dice de región, F1 **y Dice por vóxel de la clase
+secundaria**, y se evalúan en esa época y en la última.
+
+Diseño: fold 0, 12 épocas, semilla 42. Control: `y4_fullres_role_f0_e12` de la primera ronda (Dice
+por fragmento 0,7574 con `role`, 0,7084 con `edt`).
+
+Regla: un candidato pasa si supera a y4 en más de 2σ = 0,0194 de Dice por fragmento (cada modelo en
+su mejor posproceso), sin empeorar el IoU por fragmento y sin que el Dice del principal caiga más de
+0,01. Expectativa declarada: efecto entre 0 y +0,02; la Fase 1 probó cuatro reponderaciones de
+pérdida y sobremuestreo y ninguna superó el ruido.

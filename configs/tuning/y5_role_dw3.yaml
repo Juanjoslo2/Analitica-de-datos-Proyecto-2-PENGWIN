@@ -1,0 +1,6 @@
+# [y4xul] y4 + Dice de role3 ponderado: el secundario pesa 3 veces lo que el principal.
+# El mejor checkpoint se elige incluyendo el Dice por vóxel de la clase secundaria.
+base: ../base.yaml
+model: {pretrained: false, seg_fullres_skip: true, seg_outputs: [semantic4, fracture_edge, role3]}
+loss: {role3_dice_weights: [1.0, 3.0]}
+train: {selection_metrics: ["mAP@[.50:.95]", dice_hueso, cls_f1_macro, role_dice_secundario]}

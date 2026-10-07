@@ -49,7 +49,8 @@ cmd_oraculo() {
 }
 
 cmd_pp() {
-  local cfg="$1" fold="$2" ep="$3" name="${1}_f${2}_e${3}"
+  # 4.º argumento opcional: sufijo de las predicciones (p. ej. "best" = mejor época, no la última)
+  local cfg="$1" fold="$2" ep="$3${4:-}" name="${1}_f${2}_e${3}${4:-}"
   paso "posproceso edt sobre $name"
   $PY scripts/tune_postprocess.py --name "y4xul/${name}_edt" --cache-dir "$CACHE" --oof "$OOF/${cfg}_f{fold}_e${ep}" \
     --folds-file "$FOLDS" --only-folds "$fold" --jobs "$JOBS" \
@@ -77,6 +78,13 @@ cmd_corrida() {
   $PY scripts/cv_predict.py --ckpt "checkpoints/$name/last.pth" --cache-dir "$CACHE" --folds-file "$FOLDS" \
     --fold "$fold" --out-dir "$OOF/${cfg}_f${fold}_e${ep}" || return 1
   cmd_pp "$cfg" "$fold" "$ep" || return 1
+  if grep -q selection_metrics "configs/tuning/$cfg.yaml"; then
+    # criterio de selección propio: se evalúa también la mejor época según ese criterio
+    paso "$name: predicciones fuera de fold (mejor época)"
+    $PY scripts/cv_predict.py --ckpt "checkpoints/$name/best.pth" --cache-dir "$CACHE" --folds-file "$FOLDS" \
+      --fold "$fold" --out-dir "$OOF/${cfg}_f${fold}_e${ep}best" --skip-metrics || return 1
+    cmd_pp "$cfg" "$fold" "$ep" best || return 1
+  fi
   paso "$name: TERMINADO"
 }
 

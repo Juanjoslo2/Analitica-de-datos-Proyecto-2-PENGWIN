@@ -104,7 +104,7 @@ def main() -> None:
         tr = train_one_epoch(model, train_dl, loss_fn, opt, scaler, device, t["amp"], t.get("grad_clip"), args.max_steps)
         va = evaluate(model, val_dl, loss_fn, device, cfg, t["amp"])
         sched.step()
-        score = selection_score(va)
+        score = selection_score(va, t.get("selection_metrics"))
         row = {"epoch": epoch, "seconds": round(time.time() - t0, 1), "score": score,
                **{f"train_{k}": v for k, v in tr.items()}, **va}
         rows.append(row)

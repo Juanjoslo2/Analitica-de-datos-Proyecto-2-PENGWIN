@@ -197,3 +197,33 @@ def test_role3_viaja_al_dispositivo_con_el_resto_del_lote():
     """En CPU no se nota; en GPU la pérdida fallaba porque ``role3`` se quedaba en CPU."""
     from pengwin.training.engine import TENSOR_KEYS
     assert "role3" in TENSOR_KEYS
+
+
+# --------------------------------------------------------------------- Dice ponderado y selección
+def test_el_dice_ponderado_es_la_media_ponderada_de_los_dice_por_clase():
+    from pengwin.losses.losses import soft_dice_loss
+    g = torch.zeros(1, 2, 8, 8)
+    g[0, 0, :4], g[0, 1, 4:] = 1, 1
+    p = g.clone()
+    p[0, 1] = 0.0                                   # el secundario no se predice: D_sec ≈ 0
+    simple = soft_dice_loss(p, g, eps=1e-6)
+    pesado = soft_dice_loss(p, g, eps=1e-6, weights=torch.tensor([1.0, 3.0]))
+    assert torch.isclose(simple, torch.tensor(0.5), atol=1e-4)
+    assert torch.isclose(pesado, torch.tensor(0.75), atol=1e-4), "fallar el secundario cuesta 3/4 con pesos (1, 3)"
+    assert torch.isclose(soft_dice_loss(p, g, weights=torch.tensor([1.0, 1.0])), soft_dice_loss(p, g))
+
+
+def test_las_configs_y5_y6_solo_cambian_el_peso_del_dice_y_la_seleccion():
+    base, y5, y6 = (load_config(f"configs/tuning/{n}.yaml") for n in ("y4_fullres_role", "y5_role_dw3", "y6_role_dw6"))
+    assert y5["model"] == base["model"] == y6["model"]
+    assert y5["loss"]["role3_dice_weights"] == [1.0, 3.0] and y6["loss"]["role3_dice_weights"] == [1.0, 6.0]
+    assert MultiTaskLoss(y6).role3_dice_weights.tolist() == [1.0, 6.0]
+    assert MultiTaskLoss(base).role3_dice_weights.tolist() == [1.0, 1.0]
+    assert "role_dice_secundario" in y5["train"]["selection_metrics"]
+
+
+def test_el_criterio_de_seleccion_acepta_metricas_propias():
+    from pengwin.training.engine import selection_score
+    m = {"mAP@[.50:.95]": 0.8, "dice_hueso": 0.9, "cls_f1_macro": 1.0, "role_dice_secundario": 0.5}
+    assert selection_score(m) == pytest.approx(0.9)
+    assert selection_score(m, ["mAP@[.50:.95]", "dice_hueso", "cls_f1_macro", "role_dice_secundario"]) == pytest.approx(0.8)

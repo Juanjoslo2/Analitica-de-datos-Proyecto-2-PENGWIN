@@ -62,11 +62,20 @@ def sigmoid_focal_loss(logits: torch.Tensor, targets: torch.Tensor, alpha: float
     return a_t * (1 - p_t) ** gamma * ce
 
 
-def soft_dice_loss(probs: torch.Tensor, onehot: torch.Tensor, dims=(0, 2, 3), eps: float = 1.0) -> torch.Tensor:
-    """1 − Dice suave por canal, promediado. ``probs`` y ``onehot`` (B, C, H, W)."""
+def soft_dice_loss(probs: torch.Tensor, onehot: torch.Tensor, dims=(0, 2, 3), eps: float = 1.0,
+                   weights: torch.Tensor | None = None) -> torch.Tensor:
+    """1 − Dice suave por canal, promediado. ``probs`` y ``onehot`` (B, C, H, W).
+
+    ``weights`` (C,): media PONDERADA de los Dice por canal, 1 − Σ w_c·D_c / Σ w_c. Sin pesos es
+    la media simple de siempre.
+    """
     inter = (probs * onehot).sum(dims)
     denom = probs.sum(dims) + onehot.sum(dims)
-    return 1 - ((2 * inter + eps) / (denom + eps)).mean()
+    dice = (2 * inter + eps) / (denom + eps)
+    if weights is None:
+        return 1 - dice.mean()
+    w = weights.to(dice)
+    return 1 - (w * dice).sum() / w.sum()
 
 
 def detection_loss(scores: torch.Tensor, ltrb: torch.Tensor, batch: Dict, stride: int, focal: Dict) -> Dict[str, torch.Tensor]:
@@ -95,6 +104,8 @@ class MultiTaskLoss(nn.Module):
         self.register_buffer("ce_weights", torch.tensor(lc.get("seg_ce_weights", [1.0, 1.0, 1.0, 1.0]), dtype=torch.float32))
         self.register_buffer("core3_weights", torch.tensor(lc.get("core3_ce_weights", CORE3_CE_WEIGHTS), dtype=torch.float32))
         self.register_buffer("role3_weights", torch.tensor(lc.get("role3_ce_weights", ROLE3_CE_WEIGHTS), dtype=torch.float32))
+        # [y4xul] pesos (principal, secundario) del Dice de role3. (1, 1) = media simple.
+        self.register_buffer("role3_dice_weights", torch.tensor(lc.get("role3_dice_weights", (1.0, 1.0)), dtype=torch.float32))
         self.seg_outputs = tuple(cfg["model"].get("seg_outputs", DEFAULT_SEG_OUTPUTS) or DEFAULT_SEG_OUTPUTS)
         self.edge_pos_weight = float(lc.get("edge_pos_weight", 21.0))
         self.dist_huber_beta = float(lc.get("dist_huber_beta", DIST_HUBER_BETA))   # 0 = L1 pura [F2B2]
@@ -143,7 +154,8 @@ class MultiTaskLoss(nn.Module):
             tgt = batch["role3"]
             hot = F.one_hot(tgt, role.shape[1]).permute(0, 3, 1, 2).float()
             parts["role3_ce"] = F.cross_entropy(role, tgt, weight=self.role3_weights)
-            parts["role3_dice"] = soft_dice_loss(role.softmax(1)[:, 1:], hot[:, 1:])     # principal y secundario
+            parts["role3_dice"] = soft_dice_loss(role.softmax(1)[:, 1:], hot[:, 1:],    # principal y secundario
+                                                 weights=self.role3_dice_weights)
             parts["seg"] = parts["seg"] + parts["role3_ce"] + parts["role3_dice"]
         if "dist" in self.seg_outputs:
             # Regresión densa de la distancia a la fractura, ENMASCARADA AL HUESO: fuera del hueso
