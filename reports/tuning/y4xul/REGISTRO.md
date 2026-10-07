@@ -133,3 +133,29 @@ Regla: un candidato pasa si supera a y4 en más de 2σ = 0,0194 de Dice por frag
 su mejor posproceso), sin empeorar el IoU por fragmento y sin que el Dice del principal caiga más de
 0,01. Expectativa declarada: efecto entre 0 y +0,02; la Fase 1 probó cuatro reponderaciones de
 pérdida y sobremuestreo y ninguna superó el ruido.
+
+### Resultado de la segunda ronda (2026-10-07, 17:54)
+
+Fold 0, 12 épocas, cada modelo en su mejor posproceso.
+
+| id | peso del secundario | Dice vóxel secundario | posproceso | Dice frag | IoU frag | Dice principal | Dice secundario | rec. sec. | mAP@[.5:.95] |
+|---|---|---|---|---|---|---|---|---|---|
+| y4 (control) | 1 | 0,6152 | role 2 / 0,3 / 3 | 0,7574 | 0,6739 | 0,9293 | 0,5979 | 56,4 % | 0,7890 |
+| y5 | 3 | 0,6268 | role 2 / 0,3 / 3 | 0,7558 | 0,6736 | 0,9313 | 0,5931 | 54,5 % | 0,7801 |
+| y6 | 6 | 0,6261 | role 2 / 0,3 / 2 | 0,7485 | 0,6673 | 0,9292 | 0,5810 | 54,5 % | 0,7743 |
+
+Con `edt`: y4 0,7084, y5 0,7066, y6 0,7056.
+
+- **Ningún candidato pasa.** y5 queda en −0,0016 y y6 en −0,0089 respecto a y4; la regla pedía
+  +0,0194. Es ruido (σ = 0,0097), con tendencia a empeorar al subir el peso.
+- El Dice por vóxel de la clase secundaria sube +0,011, pero no se traduce en fragmentos: se
+  recuperan los mismos o menos. El coste en detección crece con el peso (mAP −0,009 y −0,015).
+- **El criterio de selección nuevo no cambia nada:** en las dos corridas la mejor época según ese
+  criterio es la última (época 11 de 0-11), así que evaluar "la mejor" y "la última" da el mismo
+  modelo. Con 12 épocas y coseno el modelo sigue mejorando hasta el final.
+- Coincide con la Fase 1: reponderar la pérdida no mueve el Dice por fragmento. No se confirma en 5
+  folds. `loss.role3_dice_weights` y `train.selection_metrics` quedan como opciones, con su valor
+  por defecto de siempre.
+
+Entrenamientos finales sobre la partición oficial (40 épocas), terminados: `y1_fullres_final`
+(mejor época 37) e `y4_fullres_role_final` (mejor época 39). El test sigue sin evaluar.
