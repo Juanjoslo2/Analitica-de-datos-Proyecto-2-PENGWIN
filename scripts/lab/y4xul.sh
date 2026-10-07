@@ -80,6 +80,21 @@ cmd_corrida() {
   paso "$name: TERMINADO"
 }
 
+cmd_confirmar() {
+  # Posproceso sobre los 5 folds a la vez: una sola combinación por modelo (confirmacion.py la elige)
+  local ep="${1:-20}"
+  for cfg in y0_sintl y1_fullres y4_fullres_role; do
+    paso "confirmación: edt sobre $cfg"
+    $PY scripts/tune_postprocess.py --name "y4xul/conf_${cfg}_edt" --cache-dir "$CACHE" --oof "$OOF/${cfg}_f{fold}_e${ep}"       --folds-file "$FOLDS" --jobs "$JOBS" --grid "seed_depth_mm=3,4,5,6;edge_threshold=0.1,0.2,0.3,0.5"       --base "method=edt;seed_min_cm3=0.02;edge_weight=5" > /dev/null || return 1
+    if grep -q role3 "configs/tuning/$cfg.yaml"; then
+      paso "confirmación: role sobre $cfg"
+      $PY scripts/tune_postprocess.py --name "y4xul/conf_${cfg}_role" --cache-dir "$CACHE" --oof "$OOF/${cfg}_f{fold}_e${ep}"         --folds-file "$FOLDS" --jobs "$JOBS" --grid "role_seed_depth_mm=1,2;role_threshold=0.3,0.5,0.7;role_smooth_mm=0,1,2,3"         --base "method=role;edge_threshold=0.2;seed_min_cm3=0.02;edge_weight=5;seed_depth_mm=5" > /dev/null || return 1
+    fi
+  done
+  $PY scripts/lab/confirmacion.py
+  paso "confirmación: TERMINADO"
+}
+
 cmd_lanzar() {
   local name="${1}_f${2}_e${3}"
   nohup bash "$REPO/scripts/lab/y4xul.sh" corrida "$1" "$2" "$3" > "$LOGS/$name.log" 2>&1 &
@@ -101,6 +116,7 @@ case "${1:-}" in
   corrida) cmd_corrida "$2" "$3" "$4" ;;
   lanzar)  cmd_lanzar "$2" "$3" "$4" ;;
   pp)      cmd_pp "$2" "$3" "$4" ;;
+  confirmar) cmd_confirmar "${2:-}" ;;
   estado)  cmd_estado ;;
   resumen) $PY scripts/lab/resumen.py "${@:2}" ;;
   *)       sed -n '2,12p' "${BASH_SOURCE[0]}" ;;
