@@ -30,7 +30,7 @@ sys.path.insert(0, str(REPO / "03_src"))
 
 from pengwin.data.dataset import PengwinSlices  # noqa: E402
 from pengwin.data.targets import DIST_MM_PER_LEVEL  # noqa: E402
-from pengwin.inference.volume import TTA_DEFAULT, predict_case  # noqa: E402
+from pengwin.inference.volume import TTA_DEFAULT, predict_case, predict_case_two_pass  # noqa: E402
 from pengwin.losses.losses import MultiTaskLoss  # noqa: E402
 from pengwin.models.pengwin_net import PengwinNet  # noqa: E402
 from pengwin.training.engine import evaluate  # noqa: E402
@@ -44,6 +44,9 @@ def main() -> None:
     ap.add_argument("--fold", type=int, required=True)
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--tta", action="store_true", help="promedia región y borde con TTA_DEFAULT (volume.py)")
+    ap.add_argument("--hi-cache-dir", type=Path, default=None,
+                    help="caché de alta resolución: con data.two_pass corre también la segunda pasada por hueso "
+                         "y guarda la pasada 1 sola en <out-dir>p1")
     ap.add_argument("--skip-metrics", action="store_true", help="no recalcula metricas.json de det/cls (no cambian con TTA)")
     args = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,8 +56,21 @@ def main() -> None:
     model.load_state_dict(ck["model"])
     cases = json.loads(args.folds_file.read_text(encoding="utf-8"))["folds"][args.fold]
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    two_pass = bool(cfg["data"].get("two_pass")) and args.hi_cache_dir is not None
+    p1_dir = Path(str(args.out_dir) + "p1")
+    if two_pass:
+        p1_dir.mkdir(parents=True, exist_ok=True)
+    n_roi = 0
     for cid in cases:
-        p = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_DEFAULT if args.tta else None)
+        if two_pass:
+            p = predict_case_two_pass(model, args.cache_dir, args.hi_cache_dir, cid, cfg, device)
+            n_roi += p["n_roi"]
+            # la pasada 1 sola, con las mismas claves: mismo modelo, solo cambia la segunda pasada
+            np.savez_compressed(p1_dir / f"{cid}.npz", semantic=p["semantic"],
+                                edge=np.round(p["edge1"].astype(np.float32) * 255).astype(np.uint8),
+                                role=np.round(p["role1"].astype(np.float32) * 255).astype(np.uint8))
+        else:
+            p = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_DEFAULT if args.tta else None)
         arrays = {"semantic": p["semantic"], "edge": np.round(p["edge"].astype(np.float32) * 255).astype(np.uint8)}
         if "core" in p:          # modelos con la salida core3: P(núcleo)·255 [F2B1]
             arrays["core"] = np.round(p["core"].astype(np.float32) * 255).astype(np.uint8)
@@ -64,6 +80,8 @@ def main() -> None:
         if "role" in p:          # modelos con la salida role3: P(secundario | hueso)·255 [y4xul]
             arrays["role"] = np.round(p["role"].astype(np.float32) * 255).astype(np.uint8)
         np.savez_compressed(args.out_dir / f"{cid}.npz", **arrays)
+    if two_pass:
+        print(f"segunda pasada: {n_roi} recortes en {len(cases)} casos")
     if args.skip_metrics:
         (args.out_dir / "metricas.json").write_text(json.dumps({"checkpoint": str(args.ckpt), "fold": args.fold, "tta": args.tta,
                                                                 "casos": cases}, indent=1), encoding="utf-8")

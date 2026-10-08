@@ -86,6 +86,9 @@ class PengwinSlices(Dataset):
         self.min_box_px = float(cfg["model"].get("det_min_box_px", 4))
         self.edge_dilation = int(cfg["loss"].get("edge_dilation_px", 2))
         self.aug_cfg = cfg.get("augment", {})
+        # [y4xul] con ``model.in_channels: 4`` el corte completo lleva un 4.º canal en cero: es el
+        # hueco de la máscara previa, que solo se rellena en la segunda pasada (data/two_pass.py).
+        self.in_channels = int(cfg["model"].get("in_channels", 3))
         self.edge_file = cfg["data"].get("edge_file", "edge.npy")
         # [F2B2] la distancia a la fractura solo se carga si el modelo la predice; así las
         # configs de siempre siguen funcionando con cachés sin dist.npy.
@@ -186,6 +189,8 @@ class PengwinSlices(Dataset):
         dist_mm = None if dist is None else dist.numpy().astype(np.float32) * (DIST_MM_PER_LEVEL * escala)
         t = slice_targets(lab.numpy(), self.min_box_px, self.edge_dilation,
                           None if edge is None else edge.numpy(), dist_mm, self.dist_max_mm)
+        if self.in_channels > img.shape[0]:
+            img = torch.cat([img, torch.zeros(self.in_channels - img.shape[0], *img.shape[-2:])], 0)
         item = {
             "image": img,
             "semantic": torch.from_numpy(t["semantic"]),

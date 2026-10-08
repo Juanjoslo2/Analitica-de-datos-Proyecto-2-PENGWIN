@@ -38,9 +38,11 @@ from pengwin.models.heads import (
 
 
 class PengwinNet(nn.Module):
-    def __init__(self, model_cfg: Dict, in_channels: int = 3):
+    def __init__(self, model_cfg: Dict, in_channels: int | None = None):
         super().__init__()
-        self.backbone = build_backbone(model_cfg, in_channels)
+        # [y4xul] ``model.in_channels: 4`` = 3 cortes de contexto + máscara previa del hueso
+        self.in_channels = int(in_channels or model_cfg.get("in_channels", 3))
+        self.backbone = build_backbone(model_cfg, self.in_channels)
         c1, c2, c3, c4 = self.backbone.widths
         neck = int(model_cfg.get("neck_channels", 128))
         n_cls = int(model_cfg.get("num_classes", 3))
@@ -105,6 +107,24 @@ def build_model(cfg: Dict, pretrained_path: str | None = None, log=print) -> Pen
         report = load_fundidora_weights(model.backbone, path)
         log(f"[backbone] pesos de {path}: cargados {report['loaded']} | omitidos {report['skipped']}")
     return model
+
+
+def load_expanding_input(model: PengwinNet, state: Dict[str, torch.Tensor]) -> int:
+    """Carga ``state`` en ``model`` aunque la primera conv tenga más canales de entrada [y4xul].
+
+    Los canales nuevos arrancan en CERO: con la máscara previa en cero o sin ella, el modelo da
+    exactamente la misma salida que el checkpoint de origen. Devuelve cuántos canales se añadieron.
+    """
+    key = "backbone.stages.0.conv.weight"
+    w, destino = state[key], model.state_dict()[key]
+    extra = destino.shape[1] - w.shape[1]
+    if extra < 0:
+        raise ValueError(f"el checkpoint tiene {w.shape[1]} canales de entrada y el modelo {destino.shape[1]}")
+    if extra:
+        state = dict(state)
+        state[key] = torch.cat([w, torch.zeros(w.shape[0], extra, *w.shape[2:], dtype=w.dtype)], 1)
+    model.load_state_dict(state)
+    return extra
 
 
 def count_parameters(model: nn.Module) -> Dict[str, int]:

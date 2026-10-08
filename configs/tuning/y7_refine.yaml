@@ -1,0 +1,7 @@
+# [y4xul] Refinamiento por región: el MISMO modelo de y4 con un 4.º canal de entrada (máscara previa
+# del hueso) y dos pasadas: corte completo a 256 px y recorte por hueso a resolución nativa.
+# Se afina desde el y4 de cada fold (--init-ckpt), con cortes completos y recortes mezclados y EMA.
+base: ../base.yaml
+model: {pretrained: false, seg_fullres_skip: true, seg_outputs: [semantic4, fracture_edge, role3], in_channels: 4}
+data: {two_pass: true, roi_per_slice: 1.0}
+train: {lr: 1.0e-4, ema_decay: 0.999}

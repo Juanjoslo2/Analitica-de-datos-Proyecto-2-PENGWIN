@@ -42,6 +42,9 @@ def main() -> None:
                          "a los casos ya cacheados; no relee los .mha [F2B2]")
     ap.add_argument("--dist-file", default="dist.npy", help="con --dist-only: nombre del archivo")
     ap.add_argument("--skip-existing", action="store_true", help="con --dist-only: no recalcula lo que ya está")
+    ap.add_argument("--image-size", type=int, default=None,
+                    help="lado del caché en px (por defecto, data.image_size); 512 = caché de alta resolución")
+    ap.add_argument("--no-extras", action="store_true", help="no escribe edge.npy ni dist.npy (caché de alta resolución)")
     ap.add_argument("--shard", default="0/1", help="k/n: procesa solo los casos con índice %% n == k (paralelismo)")
     args = ap.parse_args()
     cfg = load_config(args.config)
@@ -81,7 +84,7 @@ def main() -> None:
         t = time.time()
         try:
             meta = build_case_cache(p["case_id"], p["image_path"], p["label_path"], cache_dir,
-                                    image_size=d["image_size"],
+                                    image_size=args.image_size or d["image_size"], extras=not args.no_extras,
                                     window=(d["window"]["level"], d["window"]["width"]),
                                     context_mm=d["context_mm"], crop_margin_mm=d["crop_margin_mm"])
             print(f"[{k}/{len(todo)}] {p['case_id']} ok ({time.time() - t:.1f} s) "

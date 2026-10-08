@@ -41,10 +41,12 @@ def main() -> None:
         fila.update({m: b[m].mean() for m in FRAG})
         fila["dice_desv"] = b["dice_fragmento"].std()
         det = []
+        base = cfg[:-2] if cfg.endswith("p1") else cfg       # "…p1" = el mismo modelo, solo la pasada 1
         for k in b.index:
-            h = REPO / "reports" / "train" / f"{cfg}_f{k}_e{EPOCAS}_history.csv"
-            if h.exists():
-                det.append(pd.read_csv(h).iloc[-1][list(DET)])
+            hs = sorted((REPO / "reports" / "train").glob(f"{base}_f{k}_e*_history.csv"))
+            exacto = [h for h in hs if h.name == f"{base}_f{k}_e{EPOCAS}_history.csv"]
+            if exacto or hs:
+                det.append(pd.read_csv((exacto or hs)[-1]).iloc[-1][list(DET)])
         if det:
             fila.update({DET[c]: v for c, v in pd.DataFrame(det).astype(float).mean().items()})
         filas.append(fila)

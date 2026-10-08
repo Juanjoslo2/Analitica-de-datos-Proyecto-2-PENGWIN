@@ -30,7 +30,7 @@ sys.path.insert(0, str(REPO / "03_src"))
 
 from pengwin.data.dataset import PengwinSlices, read_split  # noqa: E402
 from pengwin.losses.losses import MultiTaskLoss, load_lambdas  # noqa: E402
-from pengwin.models.pengwin_net import build_model, count_parameters  # noqa: E402
+from pengwin.models.pengwin_net import build_model, count_parameters, load_expanding_input  # noqa: E402
 from pengwin.training.engine import (  # noqa: E402
     evaluate, param_groups, save_checkpoint, selection_score, train_one_epoch,
 )
@@ -58,6 +58,10 @@ def main() -> None:
     ap.add_argument("--folds-file", type=Path, default=None, help="reports/tuning/cv_folds.json (scripts/cv_folds.py)")
     ap.add_argument("--fold", type=int, default=None, help="con --folds-file: este fold es val y el resto train")
     ap.add_argument("--lambdas-file", type=Path, default=None, help="JSON de calibrate_lambdas.py (en vez del de la config)")
+    ap.add_argument("--hi-cache-dir", type=Path, default=None,
+                    help="caché de alta resolución; obligatorio con data.two_pass (segunda pasada por hueso)")
+    ap.add_argument("--init-ckpt", type=Path, default=None,
+                    help="parte de este checkpoint (los canales de entrada nuevos arrancan en cero)")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -75,7 +79,15 @@ def main() -> None:
     else:
         splits = REPO / cfg["data"]["splits"]
         train_cases, val_cases = read_split(splits, "train"), read_split(splits, "val")
-    train_ds = PengwinSlices(cache_dir, train_cases, cfg, train=True)
+    if cfg["data"].get("two_pass"):
+        # [y4xul] cortes completos + recortes por hueso a alta resolución con máscara previa
+        from pengwin.data.two_pass import TwoPassSlices
+        if args.hi_cache_dir is None:
+            raise SystemExit("data.two_pass necesita --hi-cache-dir")
+        train_ds = TwoPassSlices(cache_dir, args.hi_cache_dir, train_cases, cfg, train=True,
+                                 roi_per_slice=float(cfg["data"].get("roi_per_slice", 1.0)))
+    else:
+        train_ds = PengwinSlices(cache_dir, train_cases, cfg, train=True)
     val_ds = PengwinSlices(cache_dir, val_cases, cfg, train=False)
     train_dl, val_dl = loader(train_ds, cfg, True), loader(val_ds, cfg, False)
     print(f"train: {len(train_ds)} cortes | val: {len(val_ds)} cortes | {device}", flush=True)
@@ -87,7 +99,11 @@ def main() -> None:
     else:
         lambdas = load_lambdas(cfg["loss"], REPO)
     print(f"λ = {lambdas or 'sin calibrar (1, 1, 1): corre scripts/calibrate_lambdas.py'}")
-    model = build_model(cfg).to(device)
+    model = build_model(cfg)
+    if args.init_ckpt is not None:
+        extra = load_expanding_input(model, torch.load(args.init_ckpt, map_location="cpu", weights_only=False)["model"])
+        print(f"pesos iniciales de {args.init_ckpt} (+{extra} canales de entrada en cero)")
+    model = model.to(device)
     print("parámetros:", count_parameters(model))
     loss_fn = MultiTaskLoss(cfg, lambdas).to(device)
     t = cfg["train"]
@@ -95,14 +111,25 @@ def main() -> None:
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
     scaler = torch.amp.GradScaler("cuda", enabled=t["amp"] and device.type == "cuda")
 
+    # [y4xul] EMA de los pesos: se evalúa y se guarda la media móvil; el modelo sin promediar
+    # queda en last_raw.pth para poder comparar.
+    ema, ema_decay = None, float(t.get("ema_decay", 0) or 0)
+    if ema_decay > 0:
+        from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
+        ema = AveragedModel(model, multi_avg_fn=get_ema_multi_avg_fn(ema_decay), use_buffers=True)
+        print(f"EMA de pesos, decaimiento {ema_decay}")
+    eval_model = ema.module if ema is not None else model
+    on_step = (lambda: ema.update_parameters(model)) if ema is not None else None
+
     run_dir, ckpt_dir = REPO / "runs" / args.name, REPO / "checkpoints" / args.name
     run_dir.mkdir(parents=True, exist_ok=True)
     best, best_metrics, rows = -1.0, {}, []
     for epoch in range(epochs):
         t0 = time.time()
         train_ds.set_epoch(epoch)
-        tr = train_one_epoch(model, train_dl, loss_fn, opt, scaler, device, t["amp"], t.get("grad_clip"), args.max_steps)
-        va = evaluate(model, val_dl, loss_fn, device, cfg, t["amp"])
+        tr = train_one_epoch(model, train_dl, loss_fn, opt, scaler, device, t["amp"], t.get("grad_clip"), args.max_steps,
+                             on_step=on_step)
+        va = evaluate(eval_model, val_dl, loss_fn, device, cfg, t["amp"])
         sched.step()
         score = selection_score(va, t.get("selection_metrics"))
         row = {"epoch": epoch, "seconds": round(time.time() - t0, 1), "score": score,
@@ -115,10 +142,12 @@ def main() -> None:
         print(f"época {epoch:3d} ({row['seconds']:.0f} s)  loss {tr['total']:.3f} | val loss {va['val_total']:.3f}  "
               f"mAP50 {va['mAP@0.50']:.3f}  mAP {va['mAP@[.50:.95]']:.3f}  IoU {va['IoU_promedio']:.3f}  "
               f"Dice {va['dice_hueso']:.3f}  F1 {va['cls_f1_macro']:.3f}  AUC {va['cls_auc_macro']:.3f}", flush=True)
-        save_checkpoint(ckpt_dir / "last.pth", model, opt, epoch, va, cfg)
+        save_checkpoint(ckpt_dir / "last.pth", eval_model, opt, epoch, va, cfg)
+        if ema is not None:
+            save_checkpoint(ckpt_dir / "last_raw.pth", model, None, epoch, {}, cfg)
         if score > best:
             best, best_metrics = score, {"epoch": epoch, **va}
-            save_checkpoint(ckpt_dir / "best.pth", model, None, epoch, va, cfg)
+            save_checkpoint(ckpt_dir / "best.pth", eval_model, None, epoch, va, cfg)
 
     out = REPO / "reports" / "train" / f"{args.name}.json"
     out.parent.mkdir(parents=True, exist_ok=True)

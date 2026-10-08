@@ -83,6 +83,7 @@ def build_case_cache(
     window: Tuple[float, float] = (400.0, 1800.0),
     context_mm: float = 2.0,
     crop_margin_mm: float = 15.0,
+    extras: bool = True,
 ) -> Dict:
     """Preprocesa un caso y escribe ``image.npy``, ``label.npy`` y ``meta.json``.
 
@@ -114,10 +115,11 @@ def build_case_cache(
             raise ValueError(f"{case_id}: imagen {native_shape} y etiqueta {lab.shape} no coinciden")
         lab = _resize_stack(apply_crop(lab, crop, fill=0), image_size, order=0)
         np.save(out / "label.npy", lab)
-        np.save(out / "edge.npy", fracture_edge_3d(lab, EDGE_DILATION).astype(np.uint8))
-        _save_atomic(out / "dist.npy", _quantize_dist(fracture_distance_3d(lab, model_spacing_zyx(meta))))
-        meta["edge_dilation"] = EDGE_DILATION
-        meta["dist_mm_per_level"] = DIST_MM_PER_LEVEL
+        if extras:      # el caché de alta resolución no los necesita: el borde se amplía del de 256
+            np.save(out / "edge.npy", fracture_edge_3d(lab, EDGE_DILATION).astype(np.uint8))
+            _save_atomic(out / "dist.npy", _quantize_dist(fracture_distance_3d(lab, model_spacing_zyx(meta))))
+            meta["edge_dilation"] = EDGE_DILATION
+            meta["dist_mm_per_level"] = DIST_MM_PER_LEVEL
         meta["bone_slices"] = np.nonzero(lab.reshape(lab.shape[0], -1).max(1) > 0)[0].tolist()
         meta["labels_present"] = [int(v) for v in np.unique(lab) if v > 0]
 

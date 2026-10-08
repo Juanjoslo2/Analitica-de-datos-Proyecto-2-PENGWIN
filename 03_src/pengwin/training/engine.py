@@ -35,7 +35,7 @@ def autocast(device: torch.device, enabled: bool):
 
 
 def train_one_epoch(model, loader, loss_fn, optimizer, scaler, device, amp: bool = True,
-                    grad_clip: float | None = 10.0, max_steps: int | None = None) -> Dict[str, float]:
+                    grad_clip: float | None = 10.0, max_steps: int | None = None, on_step=None) -> Dict[str, float]:
     model.train()
     sums: Dict[str, float] = {}
     n = 0
@@ -53,6 +53,8 @@ def train_one_epoch(model, loader, loss_fn, optimizer, scaler, device, amp: bool
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         scaler.step(optimizer)
         scaler.update()
+        if on_step is not None:                     # p. ej. actualizar la media móvil de pesos (EMA)
+            on_step()
         for k, v in parts.items():
             sums[k] = sums.get(k, 0.0) + float(v.detach())
         n += 1

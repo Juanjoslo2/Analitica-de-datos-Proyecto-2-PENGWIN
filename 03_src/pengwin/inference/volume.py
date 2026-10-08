@@ -101,6 +101,7 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
     model.eval()
     pp = cfg.get("postprocess", {})
     stride = int(cfg["model"].get("det_stride", 8))
+    in_ch = int(cfg["model"].get("in_channels", 3))
     dist_max_mm = float(cfg.get("loss", {}).get("dist_max_mm", DIST_MAX_MM))
     Z, H, W = image.shape
     semantic = np.zeros((Z, H, W), np.uint8)
@@ -115,6 +116,8 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
         zs = range(z0, min(z0 + batch_size, Z))
         x = np.stack([context_stack(image, z, meta["context_offset"]) for z in zs]).astype(np.float32) / 255.0
         x = torch.from_numpy(x).to(device)
+        if in_ch > x.shape[1]:          # [y4xul] 4.º canal (máscara previa) en cero: es la pasada 1
+            x = torch.cat([x, x.new_zeros(x.shape[0], in_ch - x.shape[1], *x.shape[2:])], 1)
         if tta:
             out = _tta_forward(model, x, tta, amp, device)
             semantic[z0:z0 + len(zs)] = out["tta_sem"].argmax(1).cpu().numpy().astype(np.uint8)
@@ -152,6 +155,60 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
         res["dist"] = dist
     if role is not None:
         res["role"] = role
+    return res
+
+
+@torch.no_grad()
+def predict_case_two_pass(model, cache_dir: Path | str, hi_cache_dir: Path | str, case_id: str, cfg: Dict,
+                          device: torch.device, batch_size: int = 16, roi_batch: int = 32) -> Dict:
+    """Las dos pasadas del MISMO modelo sobre un caso [y4xul, refinamiento por región].
+
+    Pasada 1 = ``predict_case`` (corte completo, máscara previa en cero): región, cajas,
+    clasificación y una primera versión del papel y del borde.
+    Pasada 2: por cada corte y cada hueso que la pasada 1 encontró, un recorte del caché de alta
+    resolución con la máscara de ESE hueso en el 4.º canal. Su papel y su borde se promedian por
+    bloque para volver a la grilla de 256 y sustituyen a los de la pasada 1 solo dentro del hueso.
+
+    Devuelve lo mismo que ``predict_case`` con ``edge`` y ``role`` refinados, más ``edge1`` y
+    ``role1`` (los de la pasada 1, para medir cuánto aporta la segunda) y ``n_roi``.
+    La máscara previa es la que predice el propio modelo: nunca se usa el ground truth.
+    """
+    from pengwin.data.two_pass import ROI_MIN_PX, paste_window, prior_boxes, roi_input, roi_window
+
+    res = predict_case(model, cache_dir, case_id, cfg, device, batch_size)
+    if "role" not in res:
+        raise ValueError("la segunda pasada necesita la salida role3 (model.seg_outputs)")
+    hi_image, _, hi_meta = load_case_cache(Path(hi_cache_dir) / case_id)
+    meta, sem = res["meta"], res["semantic"]
+    out_px = sem.shape[-1]
+    scale = int(hi_meta["image_size"]) // out_px
+    res["edge1"], res["role1"] = res["edge"], res["role"]
+    edge = res["edge"].astype(np.float32)
+    role = res["role"].astype(np.float32)
+    boxes = prior_boxes(sem, ROI_MIN_PX)
+    zs, rs = np.nonzero(boxes[..., 2] > boxes[..., 0])
+    amp = device.type == "cuda"
+    for i0 in range(0, len(zs), roi_batch):
+        lote = [(int(z), int(r) + 1) for z, r in zip(zs[i0:i0 + roi_batch], rs[i0:i0 + roi_batch])]
+        wins, xs = [], []
+        for z, r in lote:
+            win = roi_window(boxes[z, r - 1], scale, out_px)
+            img, pri = roi_input(hi_image, z, meta["context_offset"], sem[z] == r, win, scale, out_px)
+            wins.append(win)
+            xs.append(torch.cat([img, pri[None].float()], 0))
+        with torch.amp.autocast(device_type=device.type, dtype=torch.float16, enabled=amp):
+            out = model(torch.stack(xs).to(device))
+        p_role = out["role_logits"].float()[:, 1:].softmax(1)[:, 1]
+        p_edge = torch.sigmoid(out["edge_logits"].float())[:, 0]
+        for k, ((z, r), (x0, y0, side)) in enumerate(zip(lote, wins)):
+            where = sem[z] == r
+            # el recorte se amplió o redujo a out_px: se devuelve a su lado real antes de promediar
+            pr = F.interpolate(p_role[k][None, None], size=(side, side), mode="bilinear", align_corners=False)[0, 0]
+            pe = F.interpolate(p_edge[k][None, None], size=(side, side), mode="bilinear", align_corners=False)[0, 0]
+            paste_window(role[z], pr, x0, y0, side, scale, where)
+            paste_window(edge[z], pe, x0, y0, side, scale, where)
+    res["edge"], res["role"] = edge.astype(np.float16), role.astype(np.float16)
+    res["n_roi"] = int(len(zs))
     return res
 
 

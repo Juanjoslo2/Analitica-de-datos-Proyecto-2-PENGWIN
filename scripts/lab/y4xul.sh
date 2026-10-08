@@ -123,7 +123,7 @@ case "${1:-}" in
   oraculo) cmd_oraculo ;;
   corrida) cmd_corrida "$2" "$3" "$4" ;;
   lanzar)  cmd_lanzar "$2" "$3" "$4" ;;
-  pp)      cmd_pp "$2" "$3" "$4" ;;
+  pp)      cmd_pp "$2" "$3" "$4" "${5:-}" ;;
   confirmar) cmd_confirmar "${2:-}" ;;
   estado)  cmd_estado ;;
   resumen) $PY scripts/lab/resumen.py "${@:2}" ;;
