@@ -47,6 +47,8 @@ def main() -> None:
     ap.add_argument("--hi-cache-dir", type=Path, default=None,
                     help="caché de alta resolución: con data.two_pass corre también la segunda pasada por hueso "
                          "y guarda la pasada 1 sola en <out-dir>p1")
+    ap.add_argument("--gate-px", type=int, default=0,
+                    help="segunda pasada selectiva: mínimo de píxeles sospechosos para refinar un hueso (0 = refinar todos)")
     ap.add_argument("--skip-metrics", action="store_true", help="no recalcula metricas.json de det/cls (no cambian con TTA)")
     args = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -60,11 +62,12 @@ def main() -> None:
     p1_dir = Path(str(args.out_dir) + "p1")
     if two_pass:
         p1_dir.mkdir(parents=True, exist_ok=True)
-    n_roi = 0
+    n_roi = n_roi_total = 0
     for cid in cases:
         if two_pass:
-            p = predict_case_two_pass(model, args.cache_dir, args.hi_cache_dir, cid, cfg, device)
+            p = predict_case_two_pass(model, args.cache_dir, args.hi_cache_dir, cid, cfg, device, gate_px=args.gate_px)
             n_roi += p["n_roi"]
+            n_roi_total += p["n_roi_total"]
             # la pasada 1 sola, con las mismas claves: mismo modelo, solo cambia la segunda pasada
             np.savez_compressed(p1_dir / f"{cid}.npz", semantic=p["semantic"],
                                 edge=np.round(p["edge1"].astype(np.float32) * 255).astype(np.uint8),
@@ -81,7 +84,7 @@ def main() -> None:
             arrays["role"] = np.round(p["role"].astype(np.float32) * 255).astype(np.uint8)
         np.savez_compressed(args.out_dir / f"{cid}.npz", **arrays)
     if two_pass:
-        print(f"segunda pasada: {n_roi} recortes en {len(cases)} casos")
+        print(f"segunda pasada: {n_roi} recortes de {n_roi_total} posibles en {len(cases)} casos")
     if args.skip_metrics:
         (args.out_dir / "metricas.json").write_text(json.dumps({"checkpoint": str(args.ckpt), "fold": args.fold, "tta": args.tta,
                                                                 "casos": cases}, indent=1), encoding="utf-8")

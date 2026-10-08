@@ -56,6 +56,10 @@ cmd_corrida() {
     --folds-file "$FOLDS" --fold "$fold" --out-dir "$OOF/${cfg}_f${fold}_e${ep}" || return 1
   bash scripts/lab/y4xul.sh pp "$cfg" "$fold" "$ep" || return 1         # dos pasadas
   bash scripts/lab/y4xul.sh pp "$cfg" "$fold" "$ep" p1 || return 1      # el mismo modelo, solo la pasada 1
+  paso "$name: segunda pasada selectiva (solo donde la pasada 1 sospecha fractura)"
+  $PY scripts/cv_predict.py --ckpt "checkpoints/$name/last.pth" --cache-dir "$CACHE" --hi-cache-dir "$HI" \
+    --folds-file "$FOLDS" --fold "$fold" --out-dir "$OOF/${cfg}_f${fold}_e${ep}gate" --gate-px "${GATE_PX:-10}" --skip-metrics || return 1
+  bash scripts/lab/y4xul.sh pp "$cfg" "$fold" "$ep" gate || return 1
   if [ "$fold" = "0" ] && [ -f "checkpoints/$name/last_raw.pth" ]; then
     paso "$name: mismas dos pasadas sin EMA (solo fold 0, para medir la EMA)"
     $PY scripts/cv_predict.py --ckpt "checkpoints/$name/last_raw.pth" --cache-dir "$CACHE" --hi-cache-dir "$HI" \
@@ -65,8 +69,20 @@ cmd_corrida() {
   paso "$name: TERMINADO"
 }
 
+cmd_final() {
+  # el mismo modelo sobre la partición oficial (train -> val); es el que se evalúa en test
+  local cfg="$1" ep="$2" name="${1}_final"
+  paso "$name: afinado desde ${ORIGEN}_final ($ep épocas)"
+  $PY scripts/train.py --config "configs/tuning/$cfg.yaml" --cache-dir "$CACHE" --hi-cache-dir "$HI" --name "$name" \
+    --epochs "$ep" --init-ckpt "checkpoints/${ORIGEN}_final/last.pth" \
+    --lambdas-file "reports/tuning/y4xul/lambdas_${ORIGEN}_final.json" || return 1
+  paso "$name: TERMINADO"
+}
+
 cmd_cola() {
   local cfg="$1" ep="$2"
+  nohup bash scripts/lab/refinar.sh final "$cfg" "$ep" > "$LOGS/refinar_${cfg}_final.log" 2>&1 &
+  echo "modelo final lanzado (pid $!)"
   for carril in "0 3" "1 4" "2"; do
     nohup bash -c "for f in $carril; do bash scripts/lab/refinar.sh corrida $cfg \$f $ep; done" \
       > "$LOGS/refinar_${cfg}_$(echo $carril | tr -d ' ').log" 2>&1 &
@@ -76,7 +92,7 @@ cmd_cola() {
 
 cmd_confirmar() {
   local cfg="$1" ep="$2"
-  for sfx in "" p1; do
+  for sfx in "" p1 gate; do
     paso "confirmación: edt sobre ${cfg}${sfx}"
     $PY scripts/tune_postprocess.py --name "y4xul/conf_${cfg}${sfx}_edt" --cache-dir "$CACHE" --oof "$OOF/${cfg}_f{fold}_e${ep}${sfx}" \
       --folds-file "$FOLDS" --jobs "$JOBS" --grid "seed_depth_mm=3,4,5,6;edge_threshold=0.1,0.2,0.3,0.5" \
@@ -97,7 +113,7 @@ cmd_estado() {
     printf '%-26s %s\n' "$(basename "$f" .log)" "$(grep -v '^\s*$' "$f" | tail -1 | cut -c1-150)"
   done
   grep -l Traceback "$LOGS"/refinar_*.log 2>/dev/null | sed 's/^/CON ERROR: /'
-  $PY scripts/lab/progreso.py y7 2>/dev/null | cut -c1-160
+  $PY scripts/lab/progreso.py "${2:-y}" 2>/dev/null | cut -c1-160
 }
 
 case "${1:-}" in
@@ -105,7 +121,8 @@ case "${1:-}" in
   prior)     cmd_prior ;;
   corrida)   cmd_corrida "$2" "$3" "$4" ;;
   cola)      cmd_cola "$2" "$3" ;;
+  final)     cmd_final "$2" "$3" ;;
   confirmar) cmd_confirmar "$2" "$3" ;;
-  estado)    cmd_estado ;;
+  estado)    cmd_estado "$@" ;;
   *)         sed -n '2,11p' "${BASH_SOURCE[0]}" ;;
 esac

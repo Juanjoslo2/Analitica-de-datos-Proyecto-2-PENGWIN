@@ -149,9 +149,10 @@ def test_cada_epoca_elige_recortes_reproducibles(tmp_path):
     ds = TwoPassSlices(lo, hi, ["001"], _cfg_mini(), train=True, roi_per_slice=0.5)
     assert ds.n_roi == 2
     ds.set_epoch(3)
-    a = ds.roi_sel.copy()
+    a = ds._plan()[1].copy()
+    ds.set_epoch(4)
     ds.set_epoch(3)
-    assert (ds.roi_sel == a).all()
+    assert (ds._plan()[1] == a).all()
 
 
 # --------------------------------------------------------------------- inferencia y EMA
@@ -179,3 +180,83 @@ def test_la_ema_promedia_los_pesos():
         m.weight.fill_(1.0)
     ema.update_parameters(m)
     assert ema.module.weight.item() == pytest.approx(0.1)
+
+
+# --------------------------------------------------------------------- muestreo por época
+def _mini_cache_largo(tmp_path):
+    """Como ``_mini_cache`` con 8 cortes: en los 4 primeros el hueso está partido, en los otros no."""
+    lo, hi = _mini_cache(tmp_path)
+    for d, f in ((lo, 1), (hi, 2)):
+        lab = np.load(d / "001" / "label.npy")
+        entero = np.where(lab > 0, 11, 0).astype(np.uint8)
+        np.save(d / "001" / "label.npy", np.concatenate([lab, entero]))
+        np.save(d / "001" / "image.npy", np.concatenate([np.load(d / "001" / "image.npy")] * 2))
+        meta = json.loads((d / "001" / "meta.json").read_text(encoding="utf-8"))
+        meta["bone_slices"], meta["native_shape_zyx"] = list(range(8)), [8, 128, 128]
+        (d / "001" / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    np.save(lo / "001" / "edge.npy", np.zeros((8, 64, 64), np.uint8))
+    sem = np.concatenate([np.load(lo / "001" / PRIOR_SEM)] * 2)
+    np.save(lo / "001" / PRIOR_SEM, sem)
+    np.save(lo / "001" / PRIOR_BOXES, prior_boxes(sem))
+    return lo, hi
+
+
+def test_la_epoca_llega_a_los_procesos_del_dataloader(tmp_path):
+    """Con persistent_workers el dataset de cada proceso no se vuelve a copiar: si la época fuera
+    un atributo normal, la aumentación sería idéntica en todas las épocas (lo era)."""
+    lo, hi = _mini_cache(tmp_path)
+    ds = TwoPassSlices(lo, hi, ["001"], _cfg_mini(), train=True, roi_per_slice=0.0)
+    dl = torch.utils.data.DataLoader(ds, batch_size=4, shuffle=False, num_workers=1, persistent_workers=True)
+    vistos = []
+    for ep in range(3):
+        ds.set_epoch(ep)
+        vistos.append(float(next(iter(dl))["image"].sum()))
+    assert len(set(vistos)) == 3, f"la aumentación no cambia entre épocas: {vistos}"
+
+
+def test_slice_stride_alterna_los_cortes_y_abarata_la_epoca(tmp_path):
+    lo, hi = _mini_cache_largo(tmp_path)
+    cfg = _cfg_mini()
+    cfg["data"]["slice_stride"] = 2
+    ds = TwoPassSlices(lo, hi, ["001"], cfg, train=True, augment=False, roi_per_slice=1.0)
+    ds.set_epoch(0)
+    pares = [ds[i]["z"] for i in range(len(ds._plan()[0]))]
+    ds.set_epoch(1)
+    impares = [ds[i]["z"] for i in range(len(ds._plan()[0]))]
+    assert pares == [0, 2, 4, 6] and impares == [1, 3, 5, 7], "entre dos épocas se ven todos los cortes"
+    assert len(ds) == 8, "4 cortes completos + 4 recortes: la mitad que sin saltar"
+
+
+def test_los_recortes_se_concentran_donde_hay_fractura(tmp_path):
+    lo, hi = _mini_cache_largo(tmp_path)
+    cfg = _cfg_mini()
+    cfg["data"]["roi_fracture_fraction"] = 0.75
+    ds = TwoPassSlices(lo, hi, ["001"], cfg, train=True, augment=False, roi_per_slice=0.5)
+    assert len(ds.roi_fx) == 4 and len(ds.roi_resto) == 4
+    ds.set_epoch(2)
+    zs = sorted(ds.rois[int(k)][1] for k in ds._plan()[1])
+    assert len(zs) == 4 and sum(z < 4 for z in zs) == 3, "3 de 4 recortes vienen de cortes con el hueso partido"
+
+
+def test_la_segunda_pasada_selectiva_refina_solo_donde_hay_sospecha(tmp_path):
+    import pengwin.inference.volume as V
+    lo, hi = _mini_cache_largo(tmp_path)
+    cfg = _cfg_mini()
+    sem = np.load(lo / "001" / PRIOR_SEM)
+    role1 = np.zeros(sem.shape, np.float16)
+    role1[0][sem[0] > 0] = 0.9                    # la pasada 1 solo sospecha en el corte 0
+
+    def falsa(model, cache_dir, case_id, cfg, device, batch_size=16, tta=None):
+        meta = json.loads((lo / "001" / "meta.json").read_text(encoding="utf-8"))
+        return {"semantic": sem, "edge": np.zeros(sem.shape, np.float16), "role": role1, "cls": None, "boxes": [], "meta": meta}
+
+    original, V.predict_case = V.predict_case, falsa
+    try:
+        net = PengwinNet(cfg["model"]).eval()
+        todo = V.predict_case_two_pass(net, lo, hi, "001", cfg, torch.device("cpu"))
+        sel = V.predict_case_two_pass(net, lo, hi, "001", cfg, torch.device("cpu"), gate_px=5, gate_z=1)
+    finally:
+        V.predict_case = original
+    assert todo["n_roi"] == todo["n_roi_total"] == 8
+    assert sel["n_roi"] == 2 and sel["n_roi_total"] == 8, "el corte con sospecha y su vecino"
+    assert np.array_equal(sel["role"][5], role1[5].astype(np.float16)), "lejos de la sospecha queda la pasada 1"

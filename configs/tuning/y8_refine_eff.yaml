@@ -1,0 +1,7 @@
+# [y4xul] y7 (dos pasadas, EMA) con muestreo eficiente y la aumentación ya corregida (la época llega a
+# los procesos del DataLoader). Cada época usa uno de cada dos cortes completos, alternando, y dos
+# tercios de sus recortes vienen de donde el hueso tiene más de un fragmento.
+base: ../base.yaml
+model: {pretrained: false, seg_fullres_skip: true, seg_outputs: [semantic4, fracture_edge, role3], in_channels: 4}
+data: {two_pass: true, roi_per_slice: 1.0, slice_stride: 2, roi_fracture_fraction: 0.67}
+train: {lr: 2.0e-4, ema_decay: 0.999}

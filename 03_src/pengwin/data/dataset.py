@@ -112,7 +112,10 @@ class PengwinSlices(Dataset):
             k = int(cfg["data"].get("secondary_oversample", 1))
             if train and k > 1:
                 self.index = self._oversample_secondary(self.index, k)
-        self._epoch = 0
+        # La época vive en memoria compartida. Con ``persistent_workers`` los procesos del
+        # DataLoader conservan su copia del dataset entre épocas: un atributo normal se quedaba en 0
+        # dentro de ellos y cada muestra recibía la MISMA aumentación en todas las épocas.
+        self._epoch_t = torch.zeros(1, dtype=torch.int64).share_memory_()
 
     def __getstate__(self):
         state = dict(self.__dict__)
@@ -152,9 +155,13 @@ class PengwinSlices(Dataset):
             extra += [(cid, int(z)) for z in np.nonzero(has_sec)[0]] * (k - 1)
         return index + extra
 
+    @property
+    def _epoch(self) -> int:
+        return int(self._epoch_t[0])
+
     def set_epoch(self, epoch: int) -> None:
         """Cambia la semilla de la aumentación por época (reproducible y distinta en cada época)."""
-        self._epoch = epoch
+        self._epoch_t[0] = int(epoch)
 
     def __len__(self) -> int:
         return len(self.index)

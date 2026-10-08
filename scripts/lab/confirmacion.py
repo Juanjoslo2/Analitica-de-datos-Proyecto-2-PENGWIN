@@ -41,7 +41,10 @@ def main() -> None:
         fila.update({m: b[m].mean() for m in FRAG})
         fila["dice_desv"] = b["dice_fragmento"].std()
         det = []
-        base = cfg[:-2] if cfg.endswith("p1") else cfg       # "…p1" = el mismo modelo, solo la pasada 1
+        base = cfg       # "…p1" = el mismo modelo con solo la pasada 1; "…gate" = segunda pasada selectiva
+        for sufijo in ("p1", "gate"):
+            if base.endswith(sufijo):
+                base = base[:-len(sufijo)]
         for k in b.index:
             hs = sorted((REPO / "reports" / "train").glob(f"{base}_f{k}_e*_history.csv"))
             exacto = [h for h in hs if h.name == f"{base}_f{k}_e{EPOCAS}_history.csv"]

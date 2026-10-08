@@ -160,7 +160,8 @@ def predict_case(model, cache_dir: Path | str, case_id: str, cfg: Dict, device: 
 
 @torch.no_grad()
 def predict_case_two_pass(model, cache_dir: Path | str, hi_cache_dir: Path | str, case_id: str, cfg: Dict,
-                          device: torch.device, batch_size: int = 16, roi_batch: int = 32) -> Dict:
+                          device: torch.device, batch_size: int = 16, roi_batch: int = 32,
+                          gate_px: int = 0, gate_z: int = 3) -> Dict:
     """Las dos pasadas del MISMO modelo sobre un caso [y4xul, refinamiento por región].
 
     Pasada 1 = ``predict_case`` (corte completo, máscara previa en cero): región, cajas,
@@ -168,6 +169,11 @@ def predict_case_two_pass(model, cache_dir: Path | str, hi_cache_dir: Path | str
     Pasada 2: por cada corte y cada hueso que la pasada 1 encontró, un recorte del caché de alta
     resolución con la máscara de ESE hueso en el 4.º canal. Su papel y su borde se promedian por
     bloque para volver a la grilla de 256 y sustituyen a los de la pasada 1 solo dentro del hueso.
+
+    ``gate_px`` > 0 = segunda pasada SELECTIVA: un hueso solo se refina en los cortes donde la
+    pasada 1 sospecha fractura (al menos ``gate_px`` píxeles con P(secundario) ≥ 0,3 o P(borde) ≥
+    0,2) o a menos de ``gate_z`` cortes de uno así. En tres de cada cuatro recortes el hueso es una
+    sola pieza y refinarlo no cambia nada; ``n_roi_total`` dice cuántos habría sin filtrar.
 
     Devuelve lo mismo que ``predict_case`` con ``edge`` y ``role`` refinados, más ``edge1`` y
     ``role1`` (los de la pasada 1, para medir cuánto aporta la segunda) y ``n_roi``.
@@ -186,7 +192,14 @@ def predict_case_two_pass(model, cache_dir: Path | str, hi_cache_dir: Path | str
     edge = res["edge"].astype(np.float32)
     role = res["role"].astype(np.float32)
     boxes = prior_boxes(sem, ROI_MIN_PX)
-    zs, rs = np.nonzero(boxes[..., 2] > boxes[..., 0])
+    presente = boxes[..., 2] > boxes[..., 0]
+    res["n_roi_total"] = int(presente.sum())
+    if gate_px > 0:
+        sospecha = (res["role1"].astype(np.float32) >= 0.3) | (res["edge1"].astype(np.float32) >= 0.2)
+        cuenta = np.stack([(sospecha & (sem == r)).reshape(len(sem), -1).sum(1) for r in (1, 2, 3)], 1)
+        activo = ndi.maximum_filter1d((cuenta >= gate_px).astype(np.uint8), size=2 * gate_z + 1, axis=0, mode="constant") > 0
+        presente &= activo
+    zs, rs = np.nonzero(presente)
     amp = device.type == "cuda"
     for i0 in range(0, len(zs), roi_batch):
         lote = [(int(z), int(r) + 1) for z, r in zip(zs[i0:i0 + roi_batch], rs[i0:i0 + roi_batch])]

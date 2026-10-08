@@ -122,9 +122,16 @@ def roi_input(hi_image: np.ndarray, z: int, delta: int, prior_r: np.ndarray, win
 class TwoPassSlices(PengwinSlices):
     """Cortes completos (pasada 1) + recortes por hueso a alta resolución (pasada 2), mezclados.
 
-    Cada época usa todos los cortes completos y el mismo número de recortes, elegidos al azar entre
-    todas las ternas (caso, corte, hueso) con máscara previa. El modelo ve las dos tareas en cada
-    lote y conserva la detección y la clasificación de la pasada 1.
+    Qué entra en cada época (se recalcula a partir de la época, también dentro de los workers):
+
+    - cortes completos: todos, o uno de cada ``data.slice_stride`` alternando el desfase con la
+      época. Los cortes vecinos distan 0,8-1,0 mm y son casi copias; el contexto 2.5D sigue viendo
+      a los vecinos, así que saltarlos abarata la época sin esconder datos.
+    - recortes: ``roi_per_slice`` por corte completo. ``data.roi_fracture_fraction`` fija qué parte
+      se toma de los recortes donde el hueso tiene más de un fragmento en ese corte (son el 26 % y
+      los únicos donde hay algo que separar); el resto se toma de los demás.
+
+    El modelo ve las dos tareas en cada lote y conserva la detección y la clasificación.
     """
 
     def __init__(self, cache_dir: Path | str, hi_cache_dir: Path | str, case_ids: Sequence[str], cfg: Dict,
@@ -132,7 +139,10 @@ class TwoPassSlices(PengwinSlices):
         super().__init__(cache_dir, case_ids, cfg, train=train, augment=augment)
         self.hi_dir = Path(hi_cache_dir)
         self.out = int(cfg["data"]["image_size"])
-        self.hi_meta, self.boxes, rois = {}, {}, []
+        self.stride = max(1, int(cfg["data"].get("slice_stride", 1)))
+        self.frac_fx = cfg["data"].get("roi_fracture_fraction")
+        self.roi_per_slice = float(roi_per_slice)
+        self.hi_meta, self.boxes, rois, con_fx = {}, {}, [], []
         for cid in self.meta:
             self.hi_meta[cid] = json.loads((self.hi_dir / cid / "meta.json").read_text(encoding="utf-8"))
             f = self.cache_dir / cid / PRIOR_BOXES
@@ -143,25 +153,52 @@ class TwoPassSlices(PengwinSlices):
             self.boxes[cid] = b
             zs, rs = np.nonzero((b[..., 2] > b[..., 0]))
             rois += [(cid, int(z), int(r) + 1) for z, r in zip(zs, rs)]
+            if self.frac_fx is not None:
+                # nº de fragmentos de cada hueso en cada corte, de la etiqueta: solo decide QUÉ
+                # recortes se muestrean más (como secondary_oversample); la entrada no la ve
+                lab = np.asarray(load_case_cache(self.cache_dir / cid)[1])
+                n = np.zeros((lab.shape[0], NUM_REGIONS), np.int16)
+                for v in np.unique(lab)[1:]:
+                    n[:, (int(v) - 1) // 10] += (lab == v).reshape(lab.shape[0], -1).any(1)
+                con_fx += (n[zs, rs] > 1).tolist()
         self.scale = int(next(iter(self.hi_meta.values()))["image_size"]) // self.out
         self.rois = rois
-        self.n_roi = min(len(rois), int(round(len(self.index) * roi_per_slice)))
+        fx = np.asarray(con_fx, bool) if self.frac_fx is not None else np.zeros(len(rois), bool)
+        self.roi_fx, self.roi_resto = np.nonzero(fx)[0], np.nonzero(~fx)[0]
+        self._z = np.asarray([z for _, z in self.index])
         self._hi: Dict[str, tuple] = {}
         self._prior: Dict[str, np.ndarray] = {}
-        self.set_epoch(0)
+        self._plan_cache: Tuple[int, np.ndarray, np.ndarray] | None = None
 
     def __getstate__(self):
         state = super().__getstate__()
-        state["_hi"], state["_prior"] = {}, {}
+        state["_hi"], state["_prior"], state["_plan_cache"] = {}, {}, None
         return state
 
-    def set_epoch(self, epoch: int) -> None:
-        super().set_epoch(epoch)
-        rng = np.random.default_rng((int(self.cfg.get("seed", 42)), 7919, epoch))
-        self.roi_sel = rng.choice(len(self.rois), size=self.n_roi, replace=False) if self.n_roi else np.zeros(0, int)
+    def _plan(self) -> Tuple[np.ndarray, np.ndarray]:
+        """(cortes completos, recortes) de la época actual. Depende solo de la época y la semilla."""
+        ep = self._epoch
+        if self._plan_cache is None or self._plan_cache[0] != ep:
+            activos = np.nonzero(self._z % self.stride == ep % self.stride)[0] if self.stride > 1 else np.arange(len(self.index))
+            rng = np.random.default_rng((int(self.cfg.get("seed", 42)), 7919, ep))
+            n = min(len(self.rois), int(round(len(activos) * self.roi_per_slice)))
+            if self.frac_fx is None:
+                sel = rng.choice(len(self.rois), size=n, replace=False) if n else np.zeros(0, int)
+            else:
+                n_fx = min(len(self.roi_fx), int(round(n * float(self.frac_fx))))
+                n_re = min(len(self.roi_resto), n - n_fx)
+                sel = np.concatenate([rng.choice(self.roi_fx, size=n_fx, replace=False),
+                                      rng.choice(self.roi_resto, size=n_re, replace=False)]).astype(int)
+            self._plan_cache = (ep, activos, sel)
+        return self._plan_cache[1], self._plan_cache[2]
+
+    @property
+    def n_roi(self) -> int:
+        return len(self._plan()[1])
 
     def __len__(self) -> int:
-        return len(self.index) + self.n_roi
+        activos, sel = self._plan()
+        return len(activos) + len(sel)
 
     def _hi_case(self, cid: str):
         if cid not in self._hi:
@@ -171,9 +208,10 @@ class TwoPassSlices(PengwinSlices):
         return self._hi[cid] + (self._prior[cid],)
 
     def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
-        if i < len(self.index):
-            return super().__getitem__(i)
-        cid, z, r = self.rois[int(self.roi_sel[i - len(self.index)])]
+        activos, sel = self._plan()
+        if i < len(activos):
+            return super().__getitem__(int(activos[i]))
+        cid, z, r = self.rois[int(sel[i - len(activos)])]
         meta = self.meta[cid]
         hi_image, hi_label, prior = self._hi_case(cid)
         _, _, edge3d, _ = self._case(cid)
