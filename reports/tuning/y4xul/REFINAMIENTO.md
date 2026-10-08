@@ -174,7 +174,7 @@ Validación cruzada, **no test**.
 | métrica | objetivo | y0 control | y7 dos pasadas [edt] | ¿cumple? |
 |---|---|---|---|---|
 | Dice por fragmento | ≥ 0,85 | 0,752 | 0,789 | **no** (faltan 0,061) |
-| IoU por fragmento | ≥ 0,70 | 0,689 | 0,725 | sí; lo supera en los 5 folds salvo el 0 (0,66 con la combinación común) |
+| IoU por fragmento | ≥ 0,70 | 0,689 | 0,725 | sí en la media; la desviación entre folds del Dice es 0,053, así que algún fold puede quedar por debajo |
 | F1 clasificación | ≥ 0,85 | 0,987 | 0,989 | sí |
 | AUC | ≥ 0,85 | 0,998 | 0,998 | sí |
 | IoU de caja | ≥ 0,65 | 0,907 | 0,893 | sí |
