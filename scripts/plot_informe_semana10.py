@@ -35,11 +35,12 @@ def evolucion():
     """Dice por fragmento en validación cruzada, etapa a etapa, contra el objetivo."""
     etapas = [("Separación solo por borde", 0.498), ("Semillas por distancia (edt)", 0.745),
               ("Sin transfer learning (control)", 0.752), ("+ resolución completa en el decodificador", 0.765),
-              ("+ salida principal / secundario", 0.787), ("+ segunda pasada por hueso", 0.789)]
-    fig, ax = plt.subplots(figsize=(8.6, 3.6))
+              ("+ salida principal / secundario", 0.787), ("+ segunda pasada por hueso", 0.789),
+              ("+ aumentación corregida, 40 épocas (final)", 0.809)]
+    fig, ax = plt.subplots(figsize=(8.8, 4.0))
     ys = range(len(etapas))[::-1]
     for y, (nombre, v) in zip(ys, etapas):
-        ax.barh(y, v, height=0.56, color=AZUL if "segunda" in nombre else AZUL_CLARO, edgecolor=SUPERFICIE, linewidth=2)
+        ax.barh(y, v, height=0.56, color=AZUL if "final" in nombre else AZUL_CLARO, edgecolor=SUPERFICIE, linewidth=2)
         ax.text(v + 0.008, y, f"{v:.3f}".replace(".", ","), va="center", color=TINTA, fontsize=10)
     ax.axvline(0.85, color=TINTA2, linewidth=1.2, linestyle=(0, (4, 3)))
     ax.text(0.853, len(etapas) - 0.45, "objetivo 0,85", color=TINTA2, fontsize=9, va="bottom")
@@ -58,15 +59,15 @@ def evolucion():
 
 
 def por_fold():
-    """Control contra el modelo de dos pasadas, fold a fold."""
+    """Control contra el modelo final (dos pasadas selectiva, role), fold a fold."""
     control = [0.6805, 0.7777, 0.7871, 0.7510, 0.7637]
-    dos = [0.7057, 0.7778, 0.8373, 0.7897, 0.8339]
+    dos = [0.7778, 0.7992, 0.8112, 0.8334, 0.8209]
     fig, ax = plt.subplots(figsize=(7.2, 3.6))
     xs = range(5)
     for x, a, b in zip(xs, control, dos):
         ax.plot([x, x], [a, b], color=REJILLA, linewidth=3, solid_capstyle="round", zorder=1)
     ax.scatter(xs, control, s=70, color=NARANJA, edgecolor=SUPERFICIE, linewidth=2, zorder=3, label="Control")
-    ax.scatter(xs, dos, s=70, color=AZUL, edgecolor=SUPERFICIE, linewidth=2, zorder=3, label="Dos pasadas")
+    ax.scatter(xs, dos, s=70, color=AZUL, edgecolor=SUPERFICIE, linewidth=2, zorder=3, label="Modelo final")
     for x, a, b in zip(xs, control, dos):
         ax.text(x + 0.11, b, f"{b:.3f}".replace(".", ","), va="center", color=TINTA, fontsize=9)
         ax.text(x + 0.11, a - (0.012 if b - a < 0.012 else 0), f"{a:.3f}".replace(".", ","), va="center", color=TINTA2, fontsize=9)
@@ -87,10 +88,10 @@ def por_fold():
 
 
 def objetivos():
-    """Las siete métricas del §5 frente a su objetivo (validación cruzada, modelo de dos pasadas)."""
-    filas = [("F1 clasificación", 0.989, 0.85), ("AUC clasificación", 0.998, 0.85), ("IoU de caja", 0.893, 0.65),
-             ("mAP@0.50", 0.975, 0.65), ("mAP@[.50:.95]", 0.800, 0.40), ("Dice por fragmento", 0.789, 0.85),
-             ("IoU por fragmento", 0.725, 0.70)]
+    """Las siete métricas del §5 frente a su objetivo (test, modelo final)."""
+    filas = [("F1 clasificación", 0.994, 0.85), ("AUC clasificación", 0.999, 0.85), ("IoU de caja", 0.911, 0.65),
+             ("mAP@0.50", 0.979, 0.65), ("mAP@[.50:.95]", 0.843, 0.40), ("Dice por fragmento", 0.833, 0.85),
+             ("IoU por fragmento", 0.756, 0.70)]
     fig, ax = plt.subplots(figsize=(8.6, 3.9))
     ys = range(len(filas))[::-1]
     for y, (nombre, v, obj) in zip(ys, filas):
@@ -106,7 +107,7 @@ def objetivos():
     ax.set_axisbelow(True)
     _limpiar(ax, eje_x=False)
     ax.set_title("Métricas del §5 frente a su objetivo", loc="left", color=TINTA, fontsize=12, pad=10)
-    ax.text(0, -0.17, "Barra: valor medido en validación cruzada (modelo de dos pasadas). Marca negra: objetivo del enunciado.",
+    ax.text(0, -0.17, "Barra: valor medido en test (15 pacientes, modelo final). Marca negra: objetivo del enunciado.",
             transform=ax.transAxes, color=MUDO, fontsize=8.5)
     fig.tight_layout()
     fig.savefig(OUT / "03_metricas_vs_objetivo.png", dpi=170)

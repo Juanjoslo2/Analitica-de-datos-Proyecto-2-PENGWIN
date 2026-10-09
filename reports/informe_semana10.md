@@ -21,7 +21,7 @@ y sobre qué datos se midió. Donde algo no se cumple o no se ha medido, se dice
 | Entrenamiento completo | **hecho**: 100 pacientes, partición por paciente, validación cruzada de 5 folds |
 | Distancia de separación en mm con `distance_transform_edt` | **hecho**, sobre predicción y sobre ground truth |
 | Comparación contra SAM | **hecha** con el modelo base; pendiente de repetir con el modelo actual |
-| Métricas del §5 | **6 de 7 cumplidas**; Dice por fragmento 0,79 contra el objetivo de 0,85 |
+| Métricas del §5 | **6 de 7 cumplidas**; Dice por fragmento 0,833 en test (0,809 en validación cruzada) contra el objetivo de 0,85 |
 
 Evolución de la métrica que no se cumple (validación cruzada, 85 pacientes):
 
@@ -32,12 +32,19 @@ Evolución de la métrica que no se cumple (validación cruzada, 85 pacientes):
 | Sin transfer learning (control de esta campaña) | 0,752 | 0,689 |
 | + características de resolución completa en el decodificador | 0,765 | 0,703 |
 | + salida principal / secundario | 0,787 | 0,710 |
-| + segunda pasada por hueso a resolución nativa | **0,789** | **0,725** |
+| + segunda pasada por hueso a resolución nativa | 0,789 | 0,725 |
+| + aumentación corregida, 40 épocas, segunda pasada selectiva | **0,809** | **0,734** |
 | objetivo del enunciado | 0,85 | 0,70 |
 
-El único resultado en el conjunto de test es el del modelo base de la semana 10 (`v2_last`): Dice
-por fragmento 0,725 e IoU 0,671. Los modelos posteriores no se han evaluado en test, a propósito:
-el test se mira una sola vez, con la configuración final.
+En el conjunto de test (15 pacientes, 84 fragmentos), evaluado **una sola vez** con el modelo y el
+posproceso fijados antes por validación cruzada:
+
+| | Dice por fragmento | IoU por fragmento | secundarios recuperados | error de distancia |
+|---|---|---|---|---|
+| Modelo base de la semana 10 (`v2_last`) | 0,725 | 0,671 | 51 % | 2,20 mm |
+| **Modelo final** | **0,833** | **0,756** | **72 %** | **0,75 mm** |
+
+El IoU por fragmento cumple. Al Dice por fragmento le faltan 0,017.
 
 ---
 
@@ -426,15 +433,15 @@ objetivo. En los folds ya entrenados con la aumentación corregida ese coste cas
 
 ### 6.4 Frente a los objetivos del §5
 
-| tarea | métrica | objetivo | validación cruzada (mejor modelo) | test (modelo base) | ¿cumple? |
+| tarea | métrica | objetivo | validación cruzada (modelo final) | test (modelo final) | ¿cumple? |
 |---|---|---|---|---|---|
-| Clasificación | F1 | ≥ 0,85 | 0,989 | 0,993 | sí |
-| Clasificación | AUC | ≥ 0,85 | 0,998 | 0,999 | sí |
-| Detección | IoU promedio | ≥ 0,65 | 0,893 | 0,919 | sí |
-| Detección | mAP@0.50 | ≥ 0,65 | 0,975 | 0,980 | sí |
-| Detección | mAP@[.50:.95] | ≥ 0,40 | 0,800 | 0,864 | sí |
-| Segmentación de fragmento | Dice | ≥ 0,85 | 0,789 | 0,725 | **no** |
-| Segmentación de fragmento | IoU | ≥ 0,70 | 0,725 | 0,671 | sí en CV; no en test con el modelo base |
+| Clasificación | F1 | ≥ 0,85 | 0,993 | 0,994 | sí |
+| Clasificación | AUC | ≥ 0,85 | 0,999 | 0,999 | sí |
+| Detección | IoU promedio | ≥ 0,65 | 0,904 | 0,911 | sí |
+| Detección | mAP@0.50 | ≥ 0,65 | 0,978 | 0,979 | sí |
+| Detección | mAP@[.50:.95] | ≥ 0,40 | 0,828 | 0,843 | sí |
+| Segmentación de fragmento | Dice | ≥ 0,85 | 0,809 | 0,833 | **no** (faltan 0,017 en test) |
+| Segmentación de fragmento | IoU | ≥ 0,70 | 0,734 | 0,756 | sí |
 
 Sobre la métrica de fragmento: cada fragmento real se empareja con uno predicho por asignación
 óptima y **el que no tiene pareja cuenta 0**. Es una definición exigente; un fragmento fusionado
@@ -459,20 +466,68 @@ SAM ViT-B en modo zero-shot, con la caja que predice nuestro detector como promp
   la métrica por fragmento no compite. **Pendiente: repetirla con el modelo actual**; se hizo con
   el modelo base.
 
-### 6.6 Corrida en curso (parcial)
+### 6.6 Modelo final: aumentación corregida, 40 épocas y segunda pasada selectiva
 
-Modelo de dos pasadas con la aumentación corregida y muestreo eficiente, 40 épocas. Terminados los
-folds 0, 1 y 2 y el modelo final sobre la partición oficial; los folds 3 y 4 están entrenando.
-Cifras con el mejor posproceso de cada fold, **no comparables todavía** con la tabla del §6.2:
+El modelo de dos pasadas, reentrenado con la aumentación corregida (§3), muestreo eficiente (uno de
+cada dos cortes por época, alternando; dos tercios de los recortes donde el hueso está partido) y 40
+épocas. Validación cruzada de 5 folds, una combinación de posproceso por modelo.
 
-| fold | Dice frag, corrida anterior | Dice frag, corrida nueva | mAP@[.50:.95] anterior | nuevo | F1 anterior | nuevo |
-|---|---|---|---|---|---|---|
-| 0 | 0,789 | 0,777 | 0,798 | 0,820 | 0,989 | 0,992 |
-| 1 | 0,778 | 0,779 | 0,795 | 0,826 | 0,990 | 0,993 |
-| 2 | 0,837 | 0,842 | 0,796 | 0,828 | 0,986 | 0,993 |
+| variante | método | Dice frag | IoU frag | Dice principal | Dice secundario | sec. recuperados | MAE distancia | Δ vs control | t | folds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo pasada 1 | edt | 0,7858 | 0,7231 | 0,9297 | 0,6317 | 66,5 % | 1,16 mm | +0,0338 | 3,46 | 5/5 |
+| dos pasadas, todos los huesos | edt | 0,7922 | 0,7303 | 0,9314 | 0,6423 | 68,2 % | 0,29 mm | +0,0402 | 3,48 | 4/5 |
+| dos pasadas, selectiva | edt | 0,7884 | 0,7267 | 0,9311 | 0,6347 | 67,3 % | 0,29 mm | +0,0364 | 3,31 | 4/5 |
+| solo pasada 1 | role | 0,8007 | 0,7247 | 0,9395 | 0,6506 | 64,1 % | 2,35 mm | +0,0487 | 3,65 | 5/5 |
+| dos pasadas, todos los huesos | role | 0,8078 | 0,7322 | 0,9398 | 0,6651 | 64,9 % | 1,86 mm | +0,0558 | 3,76 | 5/5 |
+| **dos pasadas, selectiva** | **role** | **0,8085** | **0,7335** | **0,9412** | **0,6649** | **66,3 %** | 1,80 mm | **+0,0565** | **3,72** | **5/5** |
 
-Lectura provisional: la detección y la clasificación mejoran en los tres folds y quedan a menos de
-0,007 de mAP del control; la separación de fragmentos queda igual. Se actualizará con los cinco folds.
+Detección y clasificación (corte completo, 5 folds): mAP@0.50 0,9779, mAP@[.50:.95] 0,8278, IoU de
+caja 0,9044, Dice de región 0,9684, F1 0,9930, AUC 0,9993.
+
+Dice por fragmento en cada fold (dos pasadas selectiva, `role`): 0,7778 / 0,7992 / 0,8112 / 0,8334 /
+0,8209. El control: 0,6805 / 0,7777 / 0,7871 / 0,7510 / 0,7637.
+
+**Lectura**
+
+- Es la primera mejora grande y claramente significativa: +0,057 sobre el control, t = 3,72, en los
+  5 folds. Supera el umbral de 2σ (0,026) de la Fase 2 con holgura.
+- Frente al mismo modelo antes de la corrección (§6.2, `role`: 0,782), +0,027. La detección vuelve
+  al nivel del control (mAP 0,828 contra 0,834; antes 0,800) y la clasificación lo supera.
+- **La segunda pasada selectiva iguala a la completa** (0,8085 contra 0,8078) refinando ≈ 40 % de
+  los recortes. Es la configuración adoptada.
+- Los dos métodos de separación se reparten las virtudes: `role` da el mejor Dice y protege el
+  principal; `edt` mide mucho mejor la distancia (0,29 mm contra 1,80 mm) y recupera algo más de
+  secundarios. La configuración principal es `role`, por ser el Dice por fragmento la métrica del
+  §5; `edt` se reporta como secundaria.
+- La corrección de la aumentación, las 40 épocas y el muestreo se lanzaron juntos por el plazo: no
+  se puede decir cuánto aporta cada uno.
+
+**Test** (15 pacientes, 84 fragmentos, 4 279 cortes; modelo entrenado con la partición oficial;
+evaluado una sola vez con la configuración de arriba):
+
+| | modelo base (semana 10) | modelo final, `role` (principal) | modelo final, `edt` |
+|---|---|---|---|
+| Dice por fragmento | 0,725 | **0,833** | 0,767 |
+| IoU por fragmento | 0,671 | **0,756** | 0,709 |
+| Fragmentos recuperados | 77,4 % | 85,7 % | 82,1 % |
+| Dice principal | 0,930 | 0,942 | 0,931 |
+| Dice secundario | 0,489 | 0,707 | 0,579 |
+| Secundarios recuperados | 51,3 % | 71,8 % | 61,5 % |
+| Dice fragmentos < 5 cm³ (7) | 0,000 | 0,682 | 0,000 |
+| Dice fragmentos 5-20 cm³ (13) | 0,506 | 0,811 | 0,656 |
+| Dice fragmentos > 20 cm³ (64) | 0,849 | 0,854 | 0,874 |
+| MAE de distancia | 2,20 mm | 0,75 mm | 0,98 mm |
+| F1 / AUC | 0,993 / 0,999 | 0,994 / 0,999 | — |
+| IoU de caja | 0,919 | 0,911 | — |
+| mAP@0.50 / mAP@[.50:.95] | 0,980 / 0,864 | 0,979 / 0,843 | — |
+
+- El salto en test (+0,108 de Dice) es mayor que en validación cruzada (+0,057). Con 15 pacientes
+  el margen de error es amplio; la cifra de validación cruzada, 0,809, es la estimación más prudente.
+- Lo que más cambia son los fragmentos pequeños: los menores de 5 cm³ pasan de no recuperarse (0) a
+  0,68. Es el efecto de separar por papel y rescatar los fragmentos finos, que `edt` a 5 mm pierde
+  por construcción.
+- En test, a diferencia de la validación cruzada, `role` también mide mejor la distancia que `edt`.
+- El coste es de detección fina: mAP@[.50:.95] baja de 0,864 a 0,843, lejos aún del objetivo de 0,40.
 
 ### 6.7 Figuras
 
@@ -480,8 +535,7 @@ Lectura provisional: la detección y la clasificación mejoran en los tres folds
 
 ![Dice por fragmento, etapa a etapa](figures/informe_s10/01_evolucion_dice_fragmento.png)
 
-**Fold a fold.** El modelo de dos pasadas supera al control en los cinco folds; ninguno alcanza el
-objetivo, y el fold 0 queda lejos en ambos.
+**Fold a fold.** El modelo final supera al control en los cinco folds; ninguno alcanza el objetivo.
 
 ![Dice por fragmento en cada fold](figures/informe_s10/02_dice_por_fold.png)
 
@@ -581,10 +635,21 @@ Modelo base, un corte, modelo + decodificación + NMS (`reports/latency/base.jso
 
 Volumen completo de 401 cortes en GPU: 3,4 s.
 
-La segunda pasada añade ≈ 2,2 recortes por corte, unas 3,2 veces el cómputo del modelo. Hay una
-variante selectiva implementada, que refina solo donde la primera pasada sospecha fractura; el EDA
-indica que el 74 % de los recortes muestra un hueso de una sola pieza. **La latencia del modelo de
-dos pasadas no se ha medido todavía.**
+**Modelo final de dos pasadas**, medido en el laboratorio (GPU NVIDIA GB10, CPU ARM de 8 hilos), caso
+001, 401 cortes, tiempo del modelo sin el posproceso 3D (`reports/tuning/y4xul/resultados.json`):
+
+| modo | GPU, volumen | GPU, por corte | CPU, volumen | CPU, por corte | recortes |
+|---|---|---|---|---|---|
+| solo pasada 1 | 3,1 s | 7,6 ms | 39,0 s | 97 ms | 0 |
+| dos pasadas, todos los huesos | 4,8 s | 12,0 ms | 103,4 s | 258 ms | 718 |
+| dos pasadas, selectiva | 2,7 s | 6,7 ms | no medido | — | 153 |
+
+- La segunda pasada completa cuesta 1,6 veces la primera en GPU y 2,7 veces en CPU.
+- La selectiva ejecuta 153 de 718 recortes en este caso (21 %). En GPU su tiempo sale igual o menor
+  que el de la pasada 1, lo que no es posible: la pasada 1 se midió primero y arrastra el
+  calentamiento. Debe leerse como "sin coste apreciable en GPU". En CPU no llegó a medirse.
+- Estas cifras no son comparables con la tabla anterior: es otro equipo. Queda pendiente medir en la
+  laptop.
 
 ---
 
@@ -605,17 +670,17 @@ dos pasadas no se ha medido todavía.**
 - Una sola semilla por modelo.
 - El posproceso de cada modelo se eligió sobre los mismos folds en los que se reporta: sesgo
   optimista pequeño, igual para todos.
-- La comparación con SAM y la latencia corresponden al modelo base.
+- La comparación con SAM corresponde al modelo base; la latencia de dos pasadas se midió en otro equipo.
+- El test son 15 pacientes y 84 fragmentos: un Dice de 0,833 tiene un margen de error amplio.
 - La corrida con la aumentación corregida cambia cuatro cosas a la vez; no separa cuánto aporta
   cada una.
 
 **Pendientes para la semana 11**
-1. Cerrar la corrida en curso y actualizar el §6.6.
-2. Evaluación única en test con el modelo final.
-3. Latencia en GPU y CPU con dos pasadas, completa y selectiva.
-4. SAM frente al modelo final.
-5. Visualizadores 2 y 3, dashboard, túnel de Cloudflare, model card e informe final.
-6. Registrar este trabajo en `IA_USAGE.md` con el análisis crítico del equipo.
+1. Latencia de dos pasadas en la laptop (GPU y CPU), incluida la selectiva en CPU.
+2. SAM frente al modelo final.
+3. Publicar los pesos del modelo final (`y8_refine_eff_final`) en GitHub Releases.
+4. Visualizadores 2 y 3, dashboard, túnel de Cloudflare, model card e informe final.
+5. Registrar este trabajo en `IA_USAGE.md` con el análisis crítico del equipo.
 
 ---
 

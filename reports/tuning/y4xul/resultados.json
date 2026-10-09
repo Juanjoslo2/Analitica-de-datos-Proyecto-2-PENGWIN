@@ -1,0 +1,408 @@
+{
+ "fuente": "Validación cruzada de 5 folds sobre 85 pacientes (train + val); una combinación de posproceso por modelo. Transcrito de la salida de scripts/lab/confirmacion.py en SparkLab.",
+ "control": "y0",
+ "mejor": "y8",
+ "cv": [
+  {
+   "id": "y0",
+   "modelo": "Control (sin transfer learning)",
+   "posproceso": "edt 5 / 0,3",
+   "dice_fragmento": 0.752,
+   "dice_desv": 0.0423,
+   "iou_fragmento": 0.6892,
+   "dice_principal": 0.9227,
+   "dice_secundario": 0.5688,
+   "recuperados_sec_%": 59.8,
+   "mae_distancia_mm": 1.01,
+   "delta_dice": null,
+   "t": null,
+   "folds_a_favor": null
+  },
+  {
+   "id": "y1",
+   "modelo": "+ resolución completa en el decodificador",
+   "posproceso": "edt 5 / 0,3",
+   "dice_fragmento": 0.7651,
+   "dice_desv": 0.0409,
+   "iou_fragmento": 0.7032,
+   "dice_principal": 0.9257,
+   "dice_secundario": 0.5925,
+   "recuperados_sec_%": 63.0,
+   "mae_distancia_mm": 0.92,
+   "delta_dice": 0.0131,
+   "t": 4.23,
+   "folds_a_favor": "5/5"
+  },
+  {
+   "id": "y4",
+   "modelo": "+ salida principal / secundario",
+   "posproceso": "role 2 / 0,3 / 3",
+   "dice_fragmento": 0.7874,
+   "dice_desv": 0.0224,
+   "iou_fragmento": 0.7101,
+   "dice_principal": 0.9376,
+   "dice_secundario": 0.6252,
+   "recuperados_sec_%": 55.3,
+   "mae_distancia_mm": 1.84,
+   "delta_dice": 0.0354,
+   "t": 2.05,
+   "folds_a_favor": "4/5"
+  },
+  {
+   "id": "y7",
+   "modelo": "+ segunda pasada por hueso (10 épocas)",
+   "posproceso": "edt 5 / 0,2",
+   "dice_fragmento": 0.7889,
+   "dice_desv": 0.0534,
+   "iou_fragmento": 0.7252,
+   "dice_principal": 0.9269,
+   "dice_secundario": 0.6412,
+   "recuperados_sec_%": 68.3,
+   "mae_distancia_mm": 0.57,
+   "delta_dice": 0.0369,
+   "t": 3.13,
+   "folds_a_favor": "5/5"
+  },
+  {
+   "id": "y8_edt",
+   "modelo": "+ aumentación corregida, 40 épocas (edt)",
+   "posproceso": "edt 5 / 0,1",
+   "dice_fragmento": 0.7922,
+   "dice_desv": 0.0454,
+   "iou_fragmento": 0.7303,
+   "dice_principal": 0.9314,
+   "dice_secundario": 0.6423,
+   "recuperados_sec_%": 68.2,
+   "mae_distancia_mm": 0.29,
+   "delta_dice": 0.0402,
+   "t": 3.48,
+   "folds_a_favor": "4/5"
+  },
+  {
+   "id": "y8",
+   "modelo": "+ aumentación corregida, 40 épocas, 2.ª pasada selectiva",
+   "posproceso": "role 2 / 0,3 / 3",
+   "dice_fragmento": 0.8085,
+   "dice_desv": 0.0213,
+   "iou_fragmento": 0.7335,
+   "dice_principal": 0.9412,
+   "dice_secundario": 0.6649,
+   "recuperados_sec_%": 66.3,
+   "mae_distancia_mm": 1.8,
+   "delta_dice": 0.0565,
+   "t": 3.72,
+   "folds_a_favor": "5/5"
+  }
+ ],
+ "por_fold": {
+  "y0": [
+   0.6805,
+   0.7777,
+   0.7871,
+   0.751,
+   0.7637
+  ],
+  "y1": [
+   0.6946,
+   0.7801,
+   0.8014,
+   0.7727,
+   0.7767
+  ],
+  "y4": [
+   0.7646,
+   0.8149,
+   0.7673,
+   0.8056,
+   0.7847
+  ],
+  "y7": [
+   0.7057,
+   0.7778,
+   0.8373,
+   0.7897,
+   0.8339
+  ],
+  "y8_edt": [
+   0.7253,
+   0.7731,
+   0.8408,
+   0.7978,
+   0.8239
+  ],
+  "y8": [
+   0.7778,
+   0.7992,
+   0.8112,
+   0.8334,
+   0.8209
+  ]
+ },
+ "deteccion": [
+  {
+   "id": "y0",
+   "mAP@0.50": 0.9773,
+   "mAP@[.50:.95]": 0.8341,
+   "IoU de caja": 0.9068,
+   "Dice de región": 0.966,
+   "F1": 0.9871,
+   "AUC": 0.9975
+  },
+  {
+   "id": "y1",
+   "mAP@0.50": 0.9764,
+   "mAP@[.50:.95]": 0.8286,
+   "IoU de caja": 0.9047,
+   "Dice de región": 0.9679,
+   "F1": 0.9876,
+   "AUC": 0.9975
+  },
+  {
+   "id": "y4",
+   "mAP@0.50": 0.9749,
+   "mAP@[.50:.95]": 0.8096,
+   "IoU de caja": 0.8969,
+   "Dice de región": 0.9683,
+   "F1": 0.9867,
+   "AUC": 0.9973
+  },
+  {
+   "id": "y7",
+   "mAP@0.50": 0.9746,
+   "mAP@[.50:.95]": 0.7997,
+   "IoU de caja": 0.8932,
+   "Dice de región": 0.9665,
+   "F1": 0.9893,
+   "AUC": 0.9982
+  },
+  {
+   "id": "y8",
+   "mAP@0.50": 0.9779,
+   "mAP@[.50:.95]": 0.8278,
+   "IoU de caja": 0.9044,
+   "Dice de región": 0.9684,
+   "F1": 0.993,
+   "AUC": 0.9993
+  }
+ ],
+ "segunda_pasada": [
+  {
+   "variante del modelo de 40 épocas": "solo pasada 1",
+   "método": "edt",
+   "dice_fragmento": 0.7858,
+   "iou_fragmento": 0.7231,
+   "recuperados_sec_%": 66.5,
+   "mae_distancia_mm": 1.16,
+   "recortes": "0 %"
+  },
+  {
+   "variante del modelo de 40 épocas": "dos pasadas, todos los huesos",
+   "método": "edt",
+   "dice_fragmento": 0.7922,
+   "iou_fragmento": 0.7303,
+   "recuperados_sec_%": 68.2,
+   "mae_distancia_mm": 0.29,
+   "recortes": "100 %"
+  },
+  {
+   "variante del modelo de 40 épocas": "dos pasadas, selectiva",
+   "método": "edt",
+   "dice_fragmento": 0.7884,
+   "iou_fragmento": 0.7267,
+   "recuperados_sec_%": 67.3,
+   "mae_distancia_mm": 0.29,
+   "recortes": "≈ 40 %"
+  },
+  {
+   "variante del modelo de 40 épocas": "solo pasada 1",
+   "método": "role",
+   "dice_fragmento": 0.8007,
+   "iou_fragmento": 0.7247,
+   "recuperados_sec_%": 64.1,
+   "mae_distancia_mm": 2.35,
+   "recortes": "0 %"
+  },
+  {
+   "variante del modelo de 40 épocas": "dos pasadas, todos los huesos",
+   "método": "role",
+   "dice_fragmento": 0.8078,
+   "iou_fragmento": 0.7322,
+   "recuperados_sec_%": 64.9,
+   "mae_distancia_mm": 1.86,
+   "recortes": "100 %"
+  },
+  {
+   "variante del modelo de 40 épocas": "dos pasadas, selectiva",
+   "método": "role",
+   "dice_fragmento": 0.8085,
+   "iou_fragmento": 0.7335,
+   "recuperados_sec_%": 66.3,
+   "mae_distancia_mm": 1.8,
+   "recortes": "≈ 40 %"
+  }
+ ],
+ "oraculos": [
+  {
+   "qué se le da perfecto": "nada (modelo base)",
+   "dice_fragmento": 0.743
+  },
+  {
+   "qué se le da perfecto": "la región",
+   "dice_fragmento": 0.77
+  },
+  {
+   "qué se le da perfecto": "el borde",
+   "dice_fragmento": 0.902
+  },
+  {
+   "qué se le da perfecto": "el papel (sin borde)",
+   "dice_fragmento": 0.929
+  },
+  {
+   "qué se le da perfecto": "región y borde",
+   "dice_fragmento": 0.995
+  }
+ ],
+ "objetivos": [
+  {
+   "métrica": "F1 clasificación",
+   "objetivo": 0.85,
+   "validacion_cruzada": 0.993,
+   "test": 0.9937
+  },
+  {
+   "métrica": "AUC clasificación",
+   "objetivo": 0.85,
+   "validacion_cruzada": 0.9993,
+   "test": 0.9994
+  },
+  {
+   "métrica": "IoU de caja",
+   "objetivo": 0.65,
+   "validacion_cruzada": 0.9044,
+   "test": 0.9108
+  },
+  {
+   "métrica": "mAP@0.50",
+   "objetivo": 0.65,
+   "validacion_cruzada": 0.9779,
+   "test": 0.9791
+  },
+  {
+   "métrica": "mAP@[.50:.95]",
+   "objetivo": 0.4,
+   "validacion_cruzada": 0.8278,
+   "test": 0.8426
+  },
+  {
+   "métrica": "Dice por fragmento",
+   "objetivo": 0.85,
+   "validacion_cruzada": 0.8085,
+   "test": 0.833
+  },
+  {
+   "métrica": "IoU por fragmento",
+   "objetivo": 0.7,
+   "validacion_cruzada": 0.7335,
+   "test": 0.756
+  }
+ ],
+ "test": {
+  "modelo": "y8_refine_eff_final (partición oficial: entrenado con train, 40 épocas, EMA); 15 pacientes de test, 84 fragmentos, 4279 cortes",
+  "nota": "Evaluado una sola vez, con el posproceso fijado antes por validación cruzada. Transcrito de la salida de scripts/evaluate_fragments.py y scripts/evaluate.py en SparkLab.",
+  "principal": {
+   "configuracion": "dos pasadas con la segunda selectiva (gate 10 px), método role 2 / 0,3 / 3",
+   "dice_fragmento": 0.833,
+   "iou_fragmento": 0.756,
+   "recuperados_%": 85.7,
+   "dice_principal": 0.942,
+   "dice_secundario": 0.707,
+   "recuperados_sec_%": 71.8,
+   "dice_<5cm3": 0.682,
+   "dice_5-20cm3": 0.811,
+   "dice_>20cm3": 0.854,
+   "secundarios_con_distancia_%": 71.8,
+   "mae_distancia_mm": 0.753,
+   "mediana_error_mm": 0.0,
+   "mae_mm_separados": 1.219,
+   "mae_mm_en_contacto": 0.697,
+   "f1": 0.9937,
+   "auc": 0.9994,
+   "iou_caja": 0.9108,
+   "map50": 0.9791,
+   "map5095": 0.8426,
+   "dice_region": 0.9717
+  },
+  "secundaria": {
+   "configuracion": "mismo modelo, método edt 5 / 0,1",
+   "dice_fragmento": 0.767,
+   "iou_fragmento": 0.709,
+   "recuperados_%": 82.1,
+   "dice_principal": 0.931,
+   "dice_secundario": 0.579,
+   "recuperados_sec_%": 61.5,
+   "dice_<5cm3": 0.0,
+   "dice_5-20cm3": 0.656,
+   "dice_>20cm3": 0.874,
+   "mae_distancia_mm": 0.984,
+   "mae_mm_separados": 2.85,
+   "mae_mm_en_contacto": 0.718
+  },
+  "base_semana10": {
+   "configuracion": "v2_last, una pasada, método edt (reports/fragments/v2_last_test_edt.json)",
+   "dice_fragmento": 0.725,
+   "iou_fragmento": 0.671,
+   "recuperados_%": 77.4,
+   "dice_principal": 0.93,
+   "dice_secundario": 0.489,
+   "recuperados_sec_%": 51.3,
+   "dice_<5cm3": 0.0,
+   "dice_5-20cm3": 0.506,
+   "dice_>20cm3": 0.849,
+   "mae_distancia_mm": 2.203,
+   "f1": 0.993,
+   "auc": 0.999,
+   "iou_caja": 0.919,
+   "map50": 0.98,
+   "map5095": 0.864
+  },
+  "latencia": {
+   "equipo": "SparkLab: GPU NVIDIA GB10, CPU aarch64, 8 hilos; caso 001, 401 cortes; tiempo del modelo sin el posproceso 3D",
+   "gpu": {
+    "pasada_1": {
+     "s_por_volumen": 3.06,
+     "ms_por_corte": 7.6
+    },
+    "dos_pasadas": {
+     "s_por_volumen": 4.81,
+     "ms_por_corte": 12.0,
+     "recortes": 718
+    },
+    "dos_pasadas_selectiva": {
+     "s_por_volumen": 2.68,
+     "ms_por_corte": 6.7,
+     "recortes": 153
+    }
+   },
+   "cpu": {
+    "pasada_1": {
+     "s_por_volumen": 39.0,
+     "ms_por_corte": 97.2
+    },
+    "dos_pasadas": {
+     "s_por_volumen": 103.43,
+     "ms_por_corte": 257.9,
+     "recortes": 718
+    }
+   },
+   "nota": "En GPU la pasada 1 se midió primero y arrastra el calentamiento: la selectiva no puede costar menos que la pasada 1; léase como 'igual dentro del error de medida'. La selectiva en CPU no llegó a medirse."
+  }
+ },
+ "lecturas": {
+  "cv": "**Lectura.**\n\n- El modelo actual (última fila) sube el Dice por fragmento de 0,752 a **0,809** y el IoU de 0,689 a **0,734**. Gana en los 5 folds, t = 3,72 (umbral 2,78): es la primera mejora grande y claramente significativa de la campaña.\n- Cada paso aporta: resolución completa en el decodificador (+0,013), salida de papel (+0,022), segunda pasada (+0,002 en Dice, +0,015 en IoU) y la corrección de la aumentación con 40 épocas (+0,020).\n- Los dos métodos de separación se reparten las virtudes: `role` da el mejor Dice (0,809) y protege el fragmento principal (0,941); `edt` recupera más secundarios (68 %) y mide mucho mejor la distancia (0,29 mm contra 1,80 mm).\n- El objetivo de 0,85 no se alcanza: faltan 0,041.",
+  "segunda_pasada": "**Lectura.** Mismo modelo, mismos pesos; solo cambia si se ejecuta la segunda pasada.\n\n- En Dice por fragmento aporta poco: +0,006 con `edt` y +0,007 con `role`.\n- Donde es decisiva es en la **distancia de separación**: con `edt` el error baja de 1,16 a 0,29 mm.\n- La variante **selectiva** refina solo donde la primera pasada sospecha fractura, ≈ 40 % de los recortes, y rinde igual que refinar todos (0,8085 contra 0,8078 con `role`). Es la que se adopta: mismo resultado con menos de la mitad del cómputo adicional.",
+  "aumentacion": "**Efecto de corregirlo** (junto con 40 épocas y el muestreo eficiente; los cambios se lanzaron juntos y no se pueden separar):\n\n| | antes | después |\n|---|---|---|\n| Dice por fragmento, `role` | 0,782 | 0,808 |\n| mAP@[.50:.95] | 0,800 | 0,828 |\n| F1 | 0,989 | 0,993 |\n\nLa detección recupera el nivel del control (0,834) y la clasificación lo supera. Con la aumentación congelada, entrenar más épocas no ayudaba; corregida, sí.",
+  "objetivos": "**Lectura.** Seis de las siete métricas cumplen en validación cruzada y en test.\n\n- **Dice por fragmento: 0,833 en test** (0,809 en validación cruzada) contra el objetivo de 0,85. No se cumple; faltan 0,017 en test. Es la única.\n- **IoU por fragmento: 0,756 en test**, por encima de 0,70.\n- Frente al modelo base de la semana 10 en el mismo test: Dice 0,725 → 0,833, IoU 0,671 → 0,756, secundarios recuperados 51 % → 72 %, error de distancia 2,20 → 0,75 mm, y los fragmentos menores de 5 cm³ pasan de Dice 0 a 0,68.\n- El test se evaluó **una sola vez**, con el modelo y el posproceso fijados antes por validación cruzada. Son 15 pacientes y 84 fragmentos: la cifra tiene un margen de error amplio.",
+  "cierre": "## 16. Qué no funcionó, limitaciones y pendientes\n\n**No funcionó** (detalle en `reports/informe_semana10.md` §7): 11 hiperparámetros de entrenamiento, transfer learning del Taller 3, núcleo/borde de 3 clases, regresión de la distancia al borde, semillas por h-máxima, pooling promedio, Dice ponderado de la clase secundaria.\n\n**Limitaciones**\n- El Dice por fragmento no alcanza 0,85. Nueve de cada diez secundarios tocan a su principal y la red decide corte a corte.\n- Una sola semilla por modelo; el test son 15 pacientes.\n- La corrección de la aumentación, las 40 épocas y el muestreo se lanzaron juntos: no se sabe cuánto aporta cada uno.\n- La comparación con SAM se hizo con el modelo base.\n- La latencia de dos pasadas se midió en el laboratorio (GPU GB10, CPU ARM), no en la laptop de la sección 8.\n\n**Pendientes para la semana 11**: SAM frente al modelo final; latencia en la laptop; visualizadores 2 y 3, dashboard, túnel de Cloudflare, model card e informe final; registrar este trabajo en `IA_USAGE.md`.\n\n```bash\nbash scripts/lab/refinar.sh cache512 && bash scripts/lab/refinar.sh prior      # caché de alta resolución y máscara previa\nbash scripts/lab/refinar.sh cola y8_refine_eff 40                              # 5 folds + modelo final\nbash scripts/lab/refinar.sh confirmar y8_refine_eff 40                         # tabla emparejada\npython scripts/evaluate_fragments.py --ckpt checkpoints/y8_refine_eff_final/last.pth --cache-dir CACHE \\n    --hi-cache-dir CACHE512 --data-dir 01_data --gate-px 10 --method role --role-seed-depth-mm 2 \\n    --role-threshold 0.3 --role-smooth-mm 3 --tag _role\n```"
+ }
+}

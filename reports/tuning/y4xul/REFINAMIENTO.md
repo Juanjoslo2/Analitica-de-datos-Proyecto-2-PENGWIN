@@ -3,6 +3,12 @@
 Fecha: 2026-10-07. Rama `y4xul`. Ejecución en SparkLab (DGX Spark, GPU NVIDIA GB10).
 Antecedentes: `RESUMEN.md` (cribado y confirmación) y `REGISTRO.md` (pre-registros), en esta carpeta.
 
+> **Actualización, 2026-10-09.** Este documento describe la primera versión (10 épocas). El modelo
+> final, reentrenado con la aumentación corregida, 40 épocas y la segunda pasada selectiva, llega a
+> 0,809 de Dice por fragmento y 0,734 de IoU en validación cruzada (t = 3,72, 5/5 folds) y a
+> **0,833 / 0,756 en test**. Tablas completas en `reports/informe_semana10.md` §6.6 y en
+> `resultados.json`.
+
 **Estado: implementado, probado y evaluado en validación cruzada (§6).** Mejora el control en
 +0,037 de Dice por fragmento (t = 3,13, 5/5 folds) y deja el IoU en 0,725, pero el Dice por
 fragmento queda en 0,789 contra el objetivo de 0,85. El test no se ha evaluado.
