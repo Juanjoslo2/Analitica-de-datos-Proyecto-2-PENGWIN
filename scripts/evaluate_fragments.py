@@ -36,7 +36,7 @@ sys.path.insert(0, str(REPO / "03_src"))
 from pengwin.data.data_loader import get_dataset_pairs, load_and_standardize_mha  # noqa: E402
 from pengwin.data.dataset import read_split  # noqa: E402
 from pengwin.evaluation.fragment_metrics import distance_comparison, match_fragments, summarize  # noqa: E402
-from pengwin.inference.volume import TTA_DEFAULT, predict_case, to_native  # noqa: E402
+from pengwin.inference.volume import TTA_DEFAULT, predict_case, predict_case_two_pass, to_native  # noqa: E402
 from pengwin.models.pengwin_net import PengwinNet  # noqa: E402
 from pengwin.postprocess.instances import instance_kwargs, resolve_postprocess, separate_instances  # noqa: E402
 
@@ -62,6 +62,9 @@ def main() -> None:
     ap.add_argument("--role-threshold", type=float, default=None, help="method=role: P(secundario | hueso) ≥ umbral")
     ap.add_argument("--role-seed-depth-mm", type=float, default=None, help="method=role: erosión entre secundarios")
     ap.add_argument("--role-smooth-mm", type=float, default=None, help="method=role: σ del suavizado en z")
+    ap.add_argument("--hi-cache-dir", type=Path, default=None,
+                    help="caché de alta resolución: con data.two_pass corre la segunda pasada por hueso [y4xul]")
+    ap.add_argument("--gate-px", type=int, default=0, help="segunda pasada selectiva (0 = refinar todos los huesos)")
     ap.add_argument("--tag", default="", help="sufijo del nombre del reporte (p. ej. _edt)")
     ap.add_argument("--tta", action="store_true", help="promedia región y borde con TTA_DEFAULT (volume.py)")
     args = ap.parse_args()
@@ -89,7 +92,10 @@ def main() -> None:
     frag_rows, dist_rows, per_case = [], [], {}
     for k, cid in enumerate(cases, 1):
         t0 = time.time()
-        pred = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_DEFAULT if args.tta else None)
+        if cfg["data"].get("two_pass") and args.hi_cache_dir is not None:
+            pred = predict_case_two_pass(model, args.cache_dir, args.hi_cache_dir, cid, cfg, device, gate_px=args.gate_px)
+        else:
+            pred = predict_case(model, args.cache_dir, cid, cfg, device, tta=TTA_DEFAULT if args.tta else None)
         meta = pred["meta"]
         grid_spacing = (meta["spacing_zyx"][0], meta["pixel_mm"], meta["pixel_mm"])
         # ``core`` solo existe con model.seg_outputs: [..., core3] y ``dist`` con [..., dist];
