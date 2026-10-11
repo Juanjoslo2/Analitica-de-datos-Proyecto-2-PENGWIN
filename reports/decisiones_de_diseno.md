@@ -337,7 +337,7 @@ Campaña de ajuste objetivo en ANTON (DGX Spark GB10). Detalle completo y CSV/JS
 
 **Protocolo.** Selección **solo** por validación cruzada por paciente: k = 5 sobre los 85 casos de
 train+val (`reports/tuning/cv_folds.json`, `scripts/cv_folds.py`, estratificado por nº de
-secundarios). **El test de 15 pacientes no se usó para elegir nada** y se miró una sola vez al final.
+secundarios). **En esta fase el test de 15 pacientes no se usó para elegir nada** y se miró una sola vez al final. (Antes, en las semanas 9-10, dos decisiones sí lo miraron: la época entregada de `v2`, §10.7, y los diagnósticos en test de §10.3 y §10.7 que llevaron a separar por distancia.)
 Regla fijada antes de ver resultados: si |Δ de la media entre folds| < la desviación entre folds, no
 hay ganador y se queda la opción actual. λ recalibrados con `scripts/calibrate_lambdas.py` en cada
 candidato y cada fold; se evaluó siempre la última época, igual que `v2_last`.

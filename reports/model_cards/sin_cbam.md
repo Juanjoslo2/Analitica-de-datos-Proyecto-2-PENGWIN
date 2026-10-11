@@ -13,7 +13,7 @@ Proyecto Integrador Corte 2, Analítica de Datos, UAO 2026-2. Checkpoint: `check
 - **Parámetros:** 2,911,447 (cabezas incluidas).
 
 ## Datos y entrenamiento
-- **Datos:** PENGWIN (MICCAI 2024), 100 CT de pelvis fracturada con máscaras de fragmentos de expertos. Partición fija por paciente (`01_data/splits.json`, balanceada por patrón de fractura): 70 train, 15 val, 15 test. El ajuste de la semana 10 usó validación cruzada de 5 folds sobre los 85 de train+val; el test no se usó para elegir nada.
+- **Datos:** PENGWIN (MICCAI 2024), 100 CT de pelvis fracturada con máscaras de fragmentos de expertos. Partición fija por paciente (`01_data/splits.json`, balanceada por patrón de fractura): 70 train, 15 val, 15 test. El ajuste de la semana 10 usó validación cruzada de 5 folds sobre los 85 de train+val y no miró el test. Antes de ese ajuste, la época entregada de `v2` (la última en vez de la mejor en validación) y el paso a la separación por distancia se decidieron viendo resultados de test; está declarado en `04_notebook/02_semana10.ipynb` §21.
 - **Entrenamiento:** AdamW, lr 3·10⁻⁴ con coseno, batch 8, precisión mixta (`torch.amp`), aumentación geométrica leve (escala 0,9-1,1, rotación ±10°, traslación 5 %) y de intensidad, **sin volteo** (distingue izquierda y derecha); semilla 42. 40 épocas, checkpoint de la mejor época en val (28). Sin Dropout2d ni γ (configuración de la semana 9).
 - **Cómputo:** DGX Spark (GPU GB10), contenedor NGC PyTorch 25.09.
 

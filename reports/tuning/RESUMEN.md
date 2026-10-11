@@ -9,7 +9,7 @@ ni ninguna restricción del enunciado.
 
 ## 0. Protocolo
 
-- **El test (15 pacientes) no se usó para elegir nada.** Se mira una sola vez al final (§5 de este
+- **El test (15 pacientes) no se usó para elegir nada en este ajuste.** Se mira una sola vez al final (§5 de este
   documento): configuración actual contra configuración ajustada.
 - **Selección por validación cruzada por paciente**: `reports/tuning/cv_folds.json`, k = 5 sobre los
   85 casos de train+val, estratificado por número de fragmentos secundarios (0-1 / 2 / 3+).
