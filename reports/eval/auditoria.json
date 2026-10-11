@@ -1,0 +1,35 @@
+{
+ "casos": 100,
+ "cabeceras_identicas": [],
+ "huella_par_mas_parecido": {
+  "casos": [
+   "042",
+   "078"
+  ],
+  "particiones": [
+   "train",
+   "train"
+  ],
+  "correlacion": 0.933948278427124
+ },
+ "huella_pares_sobre_0_95": 0,
+ "huella_max_misma_particion": 0.933948278427124,
+ "huella_max_entre_particiones": 0.9279120564460754,
+ "bootstrap": {
+  "n": 5000,
+  "pacientes": 15,
+  "fragmentos": 84,
+  "dice": 0.7678446937496375,
+  "dice_ic95": [
+   0.7022527752958947,
+   0.827465192795203
+  ],
+  "iou": 0.6968651868280499,
+  "iou_ic95": [
+   0.6362367170649695,
+   0.7533011295526781
+  ],
+  "p_iou_mayor_igual_0_70": 0.4784,
+  "p_dice_mayor_igual_0_85": 0.0022
+ }
+}

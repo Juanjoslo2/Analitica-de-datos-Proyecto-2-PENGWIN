@@ -103,13 +103,16 @@ def main() -> None:
     fin = rj("fragments/v2_last_test_tuned_superficie.json") or rj("fragments/v2_last_test_tuned.json")
     g = fin["global"]
     lat = {"sin TTA": rj("latency/v2_last.json"), "con TTA de 5 pasadas (final)": rj("latency/v2_last_tta.json")}
+    au = rj("eval/auditoria.json")["bootstrap"]
+    c95 = lambda k: f"{au[k]:.3f} [{au[k + '_ic95'][0]:.3f}; {au[k + '_ic95'][1]:.3f}]"
     notas_fin = (f"- **Inferencia:** TTA de 5 pasadas (escala 0,92/1,08, rotación ±8°) que promedia región y borde; detección y clasificación salen de la pasada sin transformar.\n"
                  f"- **Posproceso:** `edt_hmax` (semilla a 5 mm del borde del núcleo, umbral de borde 0,1, rescate por h-máxima con h = 1,5 mm), elegido por validación cruzada.\n"
                  f"- **Métricas opcionales (§5):** HD95 {g.get('hd95_mm'):.1f} mm y ASSD {g.get('assd_mm'):.1f} mm por fragmento emparejado "
                  f"(principales HD95 {g.get('hd95_mm_principal'):.1f} mm, secundarios {g.get('hd95_mm_secundario'):.1f} mm).\n"
                  f"- **Distancia de separación:** {g.get('secundarios_con_distancia_%'):.0f} % de los secundarios reales se recuperan y se pueden medir; error medio {g.get('mae_distancia_mm'):.2f} mm, mediana {g.get('mediana_error_mm'):.2f} mm.\n"
                  f"- **SAM (línea base, ViT-B con la caja predicha como prompt):** Dice por región 0,908 contra 0,968 del modelo propio (semana 10).\n"
-                 f"- El test se midió una sola vez con esta configuración; detalle de cada evaluación en `04_notebook/02_semana10.ipynb` §21.")
+                 f"- **Incertidumbre:** con 15 pacientes, IC95 por bootstrap de pacientes: Dice por fragmento {c95('dice')}, IoU por fragmento {c95('iou')}. El objetivo de IoU (0,70) queda dentro del intervalo: no se puede afirmar si se cumple.\n"
+                 f"- El test se midió una sola vez con esta configuración; detalle de cada evaluación en `04_notebook/02_semana10.ipynb` §21 y auditoría de fuga en `03_semana11.ipynb` §10.")
     card("final", "modelo final (v2_last + TTA + F2C2)", "checkpoints/v2_last/best.pth + configs/tuned.yaml", ev_v2l, g, v2,
          cbam + "; la salida de cada CBAM se mezcla con la identidad, y = x + γ(CBAM(x) − x), con γ aprendible",
          "40 épocas; se entrega la última (`v2_last`). Dropout2d 0,1 en las etapas 3-4 y en el decodificador; borde de fractura 3D como objetivo.",

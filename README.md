@@ -20,11 +20,11 @@ Modelo `v2_last` + TTA de 5 pasadas + posproceso `edt_hmax` (`configs/tuned.yaml
 | Detección | IoU promedio | 0,919 | ≥ 0,65 | sí |
 | Detección | mAP@0.50 | 0,980 | ≥ 0,65 | sí |
 | Detección | mAP@[.50:.95] | 0,864 | ≥ 0,40 | sí |
-| Segmentación de fragmento | Dice | 0,768 | ≥ 0,85 | no |
-| Segmentación de fragmento | IoU | 0,697 | ≥ 0,70 | no (−0,003) |
+| Segmentación de fragmento | Dice | 0,768 (IC95 0,702-0,827) | ≥ 0,85 | no |
+| Segmentación de fragmento | IoU | 0,697 (IC95 0,636-0,753) | ≥ 0,70 | no concluyente |
 | Opcional | HD95 / ASSD por fragmento | 11,7 / 3,3 mm | — | — |
 
-Distancia de separación: error medio 1,96 mm (0,75 mm en fragmentos separados, 2,32 mm en fragmentos en contacto). Latencia por corte (RTX 3060 Laptop): 34 ms en GPU y 309 ms en CPU con TTA; 8 ms y 66 ms sin TTA. Limitaciones en `reports/model_cards/final.md`.
+Distancia de separación: error medio 1,96 mm (0,75 mm en fragmentos separados, 2,32 mm en fragmentos en contacto). Latencia por corte (RTX 3060 Laptop): 34 ms en GPU y 309 ms en CPU con TTA; 8 ms y 66 ms sin TTA. Intervalos por bootstrap de pacientes (15 en test); auditoría de fuga de datos y sobreajuste en `04_notebook/03_semana11.ipynb` §10 (`scripts/auditoria_fugas.py`). Limitaciones en `reports/model_cards/final.md`.
 
 ## Dónde está cada entregable
 

@@ -42,7 +42,8 @@ Proyecto Integrador Corte 2, Analítica de Datos, UAO 2026-2. Checkpoint: `check
 - **Métricas opcionales (§5):** HD95 11,7 mm y ASSD 3,3 mm por fragmento emparejado (principales HD95 6,9 mm, secundarios 18,1 mm).
 - **Distancia de separación:** 56 % de los secundarios reales se recuperan y se pueden medir; error medio 1,96 mm, mediana 0,00 mm.
 - **SAM (línea base, ViT-B con la caja predicha como prompt):** Dice por región 0,908 contra 0,968 del modelo propio (semana 10).
-- El test se midió una sola vez con esta configuración; detalle de cada evaluación en `04_notebook/02_semana10.ipynb` §21.
+- **Incertidumbre:** con 15 pacientes, IC95 por bootstrap de pacientes: Dice por fragmento 0,768 [0,702; 0,827], IoU por fragmento 0,697 [0,636; 0,753]. El objetivo de IoU (0,70) queda dentro del intervalo: no se puede afirmar si se cumple.
+- El test se midió una sola vez con esta configuración; detalle de cada evaluación en `04_notebook/02_semana10.ipynb` §21 y auditoría de fuga en `03_semana11.ipynb` §10.
 
 ## Uso previsto y fuera de alcance
 - **Previsto:** docencia e investigación académica sobre detección y segmentación de fragmentos pélvicos en CT; demostración en el dashboard del curso.
