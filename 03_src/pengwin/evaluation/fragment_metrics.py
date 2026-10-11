@@ -30,8 +30,33 @@ def overlap_counts(gt: np.ndarray, pred: np.ndarray, n_labels: int = 31) -> np.n
                        minlength=n_labels * n_labels).reshape(n_labels, n_labels)
 
 
-def match_fragments(gt: np.ndarray, pred: np.ndarray, spacing_zyx: Sequence[float]) -> List[Dict]:
-    """Una fila por fragmento GT con su pareja predicha y sus métricas."""
+def surface_distances(a: np.ndarray, b: np.ndarray, spacing_zyx: Sequence[float]) -> Dict[str, float]:
+    """HD95 y ASSD (mm) entre dos máscaras binarias, como en el challenge PENGWIN (extensión opcional §5).
+
+    Superficie = vóxeles de la máscara con algún vecino (6-conexo) fuera de ella. Para cada vóxel de
+    superficie de A se toma la distancia a la superficie de B (EDT con el spacing del header) y al
+    revés; HD95 es el percentil 95 de las dos listas juntas y ASSD su media.
+    """
+    from scipy import ndimage as ndi
+
+    if not a.any() or not b.any():
+        return {"hd95_mm": np.nan, "assd_mm": np.nan}
+    box = ndi.find_objects((a | b).astype(np.uint8))[0]
+    box = tuple(slice(max(s.start - 2, 0), min(s.stop + 2, n)) for s, n in zip(box, a.shape))
+    a, b = a[box], b[box]
+    sa = a & ~ndi.binary_erosion(a)
+    sb = b & ~ndi.binary_erosion(b)
+    da = ndi.distance_transform_edt(~sb, sampling=spacing_zyx)[sa]     # A -> superficie de B
+    db = ndi.distance_transform_edt(~sa, sampling=spacing_zyx)[sb]     # B -> superficie de A
+    d = np.concatenate([da, db])
+    return {"hd95_mm": float(np.percentile(d, 95)), "assd_mm": float(d.mean())}
+
+
+def match_fragments(gt: np.ndarray, pred: np.ndarray, spacing_zyx: Sequence[float], surface: bool = False) -> List[Dict]:
+    """Una fila por fragmento GT con su pareja predicha y sus métricas.
+
+    ``surface=True`` añade HD95 y ASSD (mm) de cada pareja; un fragmento sin pareja queda en NaN.
+    """
     vox_cm3 = float(np.prod(spacing_zyx)) / 1000.0
     M = overlap_counts(gt, pred)
     gt_size, pred_size = M.sum(1), M.sum(0)
@@ -53,9 +78,13 @@ def match_fragments(gt: np.ndarray, pred: np.ndarray, spacing_zyx: Sequence[floa
         for a, i in enumerate(g_ids):
             j = pair.get(i)
             v = iou[a, p_ids.index(j)] if j is not None else 0.0
-            rows.append({"region": REGION_NAMES[r], "gt_label": i, "pred_label": j,
-                         "es_principal": i == (r - 1) * 10 + 1, "volumen_cm3": gt_size[i] * vox_cm3,
-                         "iou": float(v), "dice": float(2 * v / (1 + v)) if v > 0 else 0.0, "recuperado": v >= 0.5})
+            row = {"region": REGION_NAMES[r], "gt_label": i, "pred_label": j,
+                   "es_principal": i == (r - 1) * 10 + 1, "volumen_cm3": gt_size[i] * vox_cm3,
+                   "iou": float(v), "dice": float(2 * v / (1 + v)) if v > 0 else 0.0, "recuperado": v >= 0.5}
+            if surface:
+                row.update(surface_distances(gt == i, pred == j, spacing_zyx) if j is not None
+                           else {"hd95_mm": np.nan, "assd_mm": np.nan})
+            rows.append(row)
     return rows
 
 
@@ -86,6 +115,11 @@ def summarize(frag_rows: List[Dict], dist_rows: List[Dict]) -> Dict[str, float]:
            "dice_principal": f[f.es_principal].dice.mean(),
            "dice_secundario": sec.dice.mean() if len(sec) else np.nan,
            "recuperados_secundarios_%": 100 * sec.recuperado.mean() if len(sec) else np.nan}
+    if "hd95_mm" in f:                       # solo parejas con IoU > 0 (sin pareja no hay superficie)
+        out["hd95_mm"] = f.hd95_mm.mean()
+        out["assd_mm"] = f.assd_mm.mean()
+        out["hd95_mm_principal"] = f[f.es_principal].hd95_mm.mean()
+        out["hd95_mm_secundario"] = sec.hd95_mm.mean() if len(sec) else np.nan
     bins = pd.cut(f.volumen_cm3, [0, 5, 20, np.inf], labels=["<5 cm3", "5-20 cm3", ">20 cm3"])
     for name, g in f.groupby(bins, observed=False):
         out[f"dice_{name}"] = g.dice.mean() if len(g) else np.nan

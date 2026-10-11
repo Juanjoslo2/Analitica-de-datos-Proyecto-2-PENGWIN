@@ -44,7 +44,10 @@ nibabel==5.3.3               # lectura NIfTI si se exportan volúmenes a .nii.gz
 matplotlib==3.10.8
 seaborn==0.13.2
 plotly==6.5.2                # Mesh3d (visualizador 3)
-streamlit==1.52.2            # dashboard (se expone con cloudflared, binario externo)
+fastapi==0.143.0             # dashboard (05_app): API + página con los 3 visualizadores
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32     # subida de imágenes al dashboard
+Pillow==12.3.0               # dibujo del visualizador 2
 
 # --- Baseline zero-shot (SOLO evaluación, nunca en el pipeline final) --------
 segment-anything==1.0        # checkpoint sam_vit_b_01ec64.pth se descarga aparte

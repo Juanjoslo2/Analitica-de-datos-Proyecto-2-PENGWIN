@@ -1,0 +1,182 @@
+{
+ "config": "base.yaml",
+ "epochs": 40,
+ "max_steps": null,
+ "init_ckpt": null,
+ "freeze": [],
+ "ema_decay": null,
+ "lambdas": {
+  "cls": 0.7035,
+  "det": 0.9424,
+  "seg": 1.354
+ },
+ "parametros": {
+  "backbone": 1967974,
+  "neck": 197121,
+  "cls_head": 771,
+  "det_head": 608143,
+  "seg_head": 147877,
+  "total": 2921886
+ },
+ "mejor": {
+  "epoch": 39,
+  "val_cls": 0.04320490280011565,
+  "val_det_obj": 0.06421898670956289,
+  "val_det_box": 0.06431030672359514,
+  "val_det": 0.12852929341360927,
+  "val_det_pos_iou": 0.839799407906316,
+  "val_seg_ce": 0.013528433234945464,
+  "val_seg_dice": 0.06726361673024044,
+  "val_seg": 0.5183240937700961,
+  "val_edge_bce": 0.0339581215782935,
+  "val_edge_dice": 0.40357392215164456,
+  "val_total": 0.853331462856698,
+  "mAP@0.50": 0.9755801286322688,
+  "mAP@[.50:.95]": 0.8523772526929421,
+  "AP50_SA": 0.9342518619318487,
+  "AP50_LI": 0.9936647339227169,
+  "AP50_RI": 0.9988237900422408,
+  "IoU_promedio": 0.9152139984587202,
+  "dice_fondo": 0.9990716775511054,
+  "dice_SA": 0.9515712609610895,
+  "dice_LI": 0.9737630965800819,
+  "dice_RI": 0.9759964360571114,
+  "iou_fondo": 0.9981450770688088,
+  "iou_SA": 0.9076165365644118,
+  "iou_LI": 0.9488677451912242,
+  "iou_RI": 0.9531182023420627,
+  "dice_hueso": 0.9671102645327609,
+  "iou_hueso": 0.9365341613658996,
+  "cls_f1_macro": 0.9923319511209617,
+  "cls_auc_macro": 0.9988115074240266,
+  "cls_f1_SA": 0.980728948470884,
+  "cls_f1_LI": 0.9972907457578782,
+  "cls_f1_RI": 0.9989761591341232,
+  "ms_por_corte_modelo": 4.226863107096212
+ },
+ "cfg": {
+  "seed": 42,
+  "data": {
+   "raw_dir": "01_data",
+   "splits": "01_data/splits.json",
+   "processed_dir": "data_processed",
+   "orientation": "LPS",
+   "crop": "bone",
+   "crop_margin_mm": 15,
+   "image_size": 256,
+   "context_mm": 2.0,
+   "hu_clip": [
+    -1024,
+    3071
+   ],
+   "window": {
+    "level": 400,
+    "width": 1800
+   },
+   "empty_slice_fraction": 0.12
+  },
+  "model": {
+   "backbone": "fundidora_r",
+   "widths": [
+    32,
+    64,
+    128,
+    256
+   ],
+   "pretrained": true,
+   "pretrained_weights": "checkpoints/fundidora_taller3.pth",
+   "cbam": true,
+   "cbam_blocks": [
+    3,
+    4
+   ],
+   "cbam_reduction": 16,
+   "cbam_gamma": true,
+   "neck_gamma": true,
+   "spatial_dropout": 0.1,
+   "spatial_dropout_blocks": [
+    3,
+    4
+   ],
+   "seg_spatial_dropout": 0.1,
+   "neck_channels": 128,
+   "num_classes": 3,
+   "det_stride": 8,
+   "det_min_box_px": 4,
+   "seg_outputs": [
+    "semantic4",
+    "fracture_edge"
+   ]
+  },
+  "loss": {
+   "terms": [
+    "cls",
+    "det",
+    "seg"
+   ],
+   "lambdas": "auto",
+   "lambdas_file": "reports/lambdas.json",
+   "lambda_calibration_iters": 200,
+   "seg_ce_weights": [
+    1.0,
+    10.8,
+    8.7,
+    8.7
+   ],
+   "edge_dilation_px": 2,
+   "edge_pos_weight": 9,
+   "focal_alpha": 0.25,
+   "focal_gamma": 2.0,
+   "center_radius": 1.5
+  },
+  "augment": {
+   "scale": [
+    0.9,
+    1.1
+   ],
+   "rotate_deg": 10,
+   "translate": 0.05,
+   "gamma": [
+    0.8,
+    1.25
+   ],
+   "contrast": [
+    0.9,
+    1.1
+   ],
+   "brightness": 0.05
+  },
+  "train": {
+   "batch_size": 8,
+   "epochs": 40,
+   "lr": 0.0003,
+   "backbone_lr_factor": 1.0,
+   "weight_decay": 0.0001,
+   "grad_clip": 10.0,
+   "amp": true,
+   "num_workers": 4
+  },
+  "overfit_test": {
+   "n_slices": 8,
+   "max_steps": 500,
+   "augment": false,
+   "accept": {
+    "loss_drop": 0.95,
+    "dice": 0.95,
+    "map50": 0.95
+   }
+  },
+  "postprocess": {
+   "det_score_threshold": 0.3,
+   "nms_iou": 0.5,
+   "max_boxes_per_class": 1,
+   "min_fragment_cm3": 0.1,
+   "instance_method": "edt",
+   "seed_depth_mm": 5.0,
+   "edge_threshold": 0.2
+  },
+  "measurement": {
+   "contact_threshold": "voxel_diagonal"
+  }
+ }
+}

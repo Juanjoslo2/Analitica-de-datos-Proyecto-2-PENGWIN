@@ -59,6 +59,7 @@ def main() -> None:
     ap.add_argument("--core-threshold", type=float, default=None, help="method=core3: P(núcleo) > umbral")
     ap.add_argument("--core-seed-depth-mm", type=float, default=None, help="method=core3: erosión extra del núcleo")
     ap.add_argument("--tag", default="", help="sufijo del nombre del reporte (p. ej. _edt)")
+    ap.add_argument("--surface", action="store_true", help="añade HD95 y ASSD por fragmento (extensión opcional §5)")
     ap.add_argument("--tta", nargs="?", const="5", default=None, choices=list(TTA_SETS),
                     help="TTA: promedia región y borde sobre 5 (por defecto) o 9 transformaciones (volume.py)")
     args = ap.parse_args()
@@ -96,7 +97,7 @@ def main() -> None:
                                       core=pred.get("core"), dist=pred.get("dist"), **instance_kwargs(pp))
         lab_pred = to_native(lab_grid, meta, order=0)
         gt, spacing, _ = load_and_standardize_mha(pairs[cid]["label_path"], is_label=True)
-        fr = match_fragments(gt, lab_pred, spacing)
+        fr = match_fragments(gt, lab_pred, spacing, surface=args.surface)
         dr = distance_comparison(gt, lab_pred, spacing, fr)
         for row in fr + dr:
             row["case_id"] = cid

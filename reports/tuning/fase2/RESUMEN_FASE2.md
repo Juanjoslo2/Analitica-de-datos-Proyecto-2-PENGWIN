@@ -1,5 +1,8 @@
 # Fase 2 — arquitectura y transfer learning (CERRADA 2026-10-05)
 
+> **Actualización posterior (cierre de la semana 10):** este documento registra la búsqueda tal como terminó. Después se adoptó `configs/tuned.yaml` (TTA de 5 pasadas + posproceso `edt_hmax`), medido una vez en test: Dice por fragmento 0,768 e IoU 0,697. Ver `reports/decisiones_de_diseno.md` §13.
+
+
 Objetivo: acercar o cumplir las métricas de **fragmento** del §5 del enunciado (Dice ≥ 0,85,
 IoU ≥ 0,70) partiendo de 0,7453 ± 0,0451 (CV) y 0,725 (test), sin perder lo ya cumplido y **sin
 enmascarar nada**.

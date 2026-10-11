@@ -27,7 +27,7 @@ Este documento es la referencia común del equipo para implementar el modelo. Ca
 
 - Salidas: semántica de 4 clases (fondo, SA, izq., der.) + **mapa de borde de fractura**.
   - El 88,7 % de los fragmentos secundarios toca al principal (§7).
-  - El borde es 1 de cada ~446 píxeles de hueso: el objetivo se dilata 2 px y se entrena con BCE (`pos_weight` ≈ 21) + Dice.
+  - El borde es 1 de cada ~446 píxeles de hueso: el objetivo se dilata 2 px y se entrena con BCE + Dice. `pos_weight` era ≈ 21 en la semana 9; desde la semana 10 es 9, calculado sobre el borde dilatado que de verdad se entrena (§10.3).
 - Instancias = (región − borde) → **componentes conexas 3D tras apilar los cortes** → watershed para devolver los píxeles de borde.
   - Las componentes < 0,1 cm³ se reasignan a la instancia vecina.
   - Un mismo fragmento aparece partido en islas 2D en 18–40 % de los cortes, así que las componentes 2D no equivalen a instancias (§8).
@@ -69,7 +69,7 @@ Este documento es la referencia común del equipo para implementar el modelo. Ca
 
 - Todo módulo nuevo entra con tests sobre **phantoms sintéticos** con respuesta conocida (IoU, NMS, decodificación del grid, EDT con spacing anisotrópico, Dice). No deben depender del dataset (~32 GB).
 - Los tests que necesitan los `.mha` llevan la marca `data` y se omiten solos si no están.
-- GitHub Actions (`.github/workflows/tests.yml`) corre `pytest` en cada PR. Hoy: 50 tests sin datos + 5 con datos (incluida la prueba de overfit, `slow`).
+- GitHub Actions (`.github/workflows/tests.yml`) corre `pytest` en cada PR. Al cierre (semana 11): 136 tests sin datos + 4 con datos que se omiten si no está el dataset (`python -m pytest`).
 
 ## 7. Revisión externa de la semana 8 — qué se tomó y qué no
 
@@ -436,7 +436,41 @@ de semilla antes de adoptar cualquier cosa.
   se tocan en 3D.
 - **Híbrido `edt_hmax`:** recupera secundarios (Dice secundario +0,05/+0,07 en 5/5 folds en los dos
   OOF), pero cuesta ≈ −0,010 de Dice principal y +0,5-0,7 mm de MAE de distancia. Falló el
-  guardarraíl pre-registrado en la réplica y no se adopta. Queda implementado
-  (`instance_method: edt_hmax`) como opción documentada.
-- **Arquitectura final = la de la semana 10.** Las métricas de fragmento no alcanzan el objetivo
-  (test 0,725 / 0,671 contra 0,85 / 0,70). Clasificación y detección siguen cumpliendo con margen.
+  guardarraíl pre-registrado en la réplica y en ese momento no se adopta. Se retoma combinado con TTA
+  (§13), donde sí cumple el guardarraíl; esa adopción se declara como posterior a ver los datos.
+- **Arquitectura final = la de la semana 10.** Al cerrar la Fase 2 las métricas de fragmento seguían en
+  test 0,725 / 0,671; la inferencia final de §13 las lleva a 0,768 / 0,697.
+
+## 13. Configuración final: TTA + posproceso híbrido (cierre de la semana 10)
+
+Detalle y figuras en `04_notebook/02_semana10.ipynb` (secciones 18-21).
+
+- **Ensamble descartado por el enunciado.** Promediar 2 o 6 modelos sube el Dice por fragmento en CV
+  (0,785 y 0,798), pero el §4.1 pide tres cabezas sobre **un mismo** backbone.
+- **TTA de 5 pasadas** (escala 0,92/1,08, rotación ±8°, dentro de la aumentación de entrenamiento; sin
+  volteo por la lateralidad): un solo modelo, misma detección y clasificación. Con `edt_hmax` (h = 1,5)
+  da +0,047 de Dice por fragmento en CV (t = 4,1, 5/5 folds) con la semilla 42 y +0,037 con la 1337;
+  el Dice principal baja 0,006, dentro del guardarraíl de 0,010. TTA de 9 pasadas es peor (−0,012).
+- **`configs/tuned.yaml`** = `v2_last` + TTA 5 + `edt_hmax` (profundidad 5 mm, umbral de borde 0,1, h 1,5).
+- **Test, medido una vez:** Dice por fragmento 0,768, IoU 0,697 (objetivos 0,85 / 0,70); detección y
+  clasificación sin cambios (F1 0,993, AUC 0,999, IoU de caja 0,919, mAP@0.5 0,980, mAP@[.5:.95] 0,864).
+  Ajustes posteriores por CV (`min_fragment_cm3`, `seed_min_cm3`, profundidad 5,5 mm) no superaron el
+  ruido, así que no hubo segunda medición.
+
+## 14. Semana 11: entrega
+
+Detalle en `04_notebook/03_semana11.ipynb`.
+
+- **Dashboard** (`05_app/`): FastAPI + una página con los tres visualizadores; corre en la GPU de ANTON y
+  se publica en una URL del VPS del equipo mediante un túnel SSH inverso. El enunciado menciona un
+  túnel de Cloudflare; desde la red de ANTON el puerto de salida de Cloudflare (7844) está bloqueado, así
+  que el equipo decidió publicar por su propio VPS (HTTPS con Let's Encrypt). El volumen se sube por
+  trozos de 8 MB porque un CT de PENGWIN pesa 30-430 MB.
+- **Orientación por metadatos** (`data_loader.align_to_axes`): un volumen oblicuo se remuestrea a la
+  grilla LPS con sus cosenos directores. En PENGWIN no ocurre (66 LPS y 34 RAS, todos alineados), pero
+  el volumen que se suba al dashboard sí puede traerlo.
+- **HD95 y ASSD** por fragmento emparejado (extensión opcional del §5): 11,7 mm y 3,3 mm en test.
+- **Galería de los 5 peores casos** (`scripts/peores_casos.py`): los 10 secundarios perdidos están en
+  contacto con su principal y 8 quedaron absorbidos por él. Es la limitación del model card.
+- **Matriz de confusión** (`scripts/confusion.py`), **Grad-CAM con y sin CBAM** (`scripts/gradcam.py`) y
+  **model cards** generados desde los reportes (`scripts/model_cards.py` → `reports/model_cards/`).

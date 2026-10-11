@@ -1,5 +1,8 @@
 # Ajuste objetivo de hiperparámetros — semana 10/11
 
+> **Actualización posterior (cierre de la semana 10):** este documento registra la búsqueda tal como terminó. Después se adoptó `configs/tuned.yaml` (TTA de 5 pasadas + posproceso `edt_hmax`), medido una vez en test: Dice por fragmento 0,768 e IoU 0,697. Ver `reports/decisiones_de_diseno.md` §13.
+
+
 Objetivo: subir las métricas del §5 del enunciado, sobre todo la **segmentación por fragmento**
 (hoy Dice 0,725 / IoU 0,671 en test contra los objetivos 0,85 / 0,70), sin cambiar la arquitectura
 ni ninguna restricción del enunciado.

@@ -49,3 +49,8 @@ reports/overfit/overfit_f2b*
 configs/tuning/*.yaml
 reports/tuning/ESTADO.md
 reports/tuning/PROGRESO.md
+
+# Dashboard: trabajos subidos y ejemplos procesados (se regeneran con 05_app/preparar_ejemplos.py)
+05_app/trabajos/
+05_app/ejemplos/
+05_app/datos/

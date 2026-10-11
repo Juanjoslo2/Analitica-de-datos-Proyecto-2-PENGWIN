@@ -1,6 +1,6 @@
 # Configuración final de la semana 10 (2026-10-06). Mismo modelo y mismo entrenamiento que base.yaml
 # (checkpoint v2_last); cambia solo la inferencia, elegida por validación cruzada por paciente
-# (04_notebook/03_semana10_ajuste.ipynb, secciones 6, 9 y 10):
+# (04_notebook/02_semana10.ipynb, secciones 15, 18 y 19):
 #   - TTA de 5 pasadas (escala 0,92/1,08 y rotación ±8°, dentro de la aumentación de entrenamiento):
 #     promedia P(región) y P(borde). La detección y la clasificación no cambian.
 #   - semillas edt + h-máxima donde edt no deja semilla (F2C2), h = 1,5 mm.

@@ -35,8 +35,14 @@ def autocast(device: torch.device, enabled: bool):
 
 
 def train_one_epoch(model, loader, loss_fn, optimizer, scaler, device, amp: bool = True,
-                    grad_clip: float | None = 10.0, max_steps: int | None = None) -> Dict[str, float]:
+                    grad_clip: float | None = 10.0, max_steps: int | None = None,
+                    frozen: Iterable[str] = (), ema=None) -> Dict[str, float]:
+    """Una época. ``frozen``: módulos congelados; quedan además en modo eval para que sus
+    BatchNorm no cambien las estadísticas que reciben las cabezas que sí se entrenan.
+    ``ema``: ``AveragedModel`` que se actualiza tras cada paso del optimizador."""
     model.train()
+    for name in frozen:
+        getattr(model, name).eval()
     sums: Dict[str, float] = {}
     n = 0
     for step, batch in enumerate(loader):
@@ -53,6 +59,8 @@ def train_one_epoch(model, loader, loss_fn, optimizer, scaler, device, amp: bool
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         scaler.step(optimizer)
         scaler.update()
+        if ema is not None:
+            ema.update_parameters(model)
         for k, v in parts.items():
             sums[k] = sums.get(k, 0.0) + float(v.detach())
         n += 1

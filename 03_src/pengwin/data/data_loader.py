@@ -41,6 +41,33 @@ def get_orientation_code(itk_image: sitk.Image) -> str:
             return "DESCONOCIDA"
 
 
+def oblique_angle_deg(itk_image: sitk.Image) -> float:
+    """Ángulo (°) entre los ejes de la imagen y los del paciente; 0 si está alineada."""
+    D = np.array(itk_image.GetDirection(), float).reshape(3, 3)
+    return float(np.degrees(np.arccos(np.clip(np.abs(D).max(axis=0).min(), -1.0, 1.0))))
+
+
+def align_to_axes(itk_image: sitk.Image, is_label: bool = False, tol_deg: float = 0.5) -> sitk.Image:
+    """Remuestrea un volumen oblicuo a una grilla alineada con los ejes LPS.
+
+    La caja nueva es la que contiene las 8 esquinas del volumen en coordenadas físicas
+    (origen + D · diag(spacing) · índice); se conserva el spacing. Imagen: interpolación
+    lineal y relleno de aire (−1024 HU); etiqueta: vecino más cercano y relleno 0.
+    """
+    if itk_image.GetDimension() != 3 or oblique_angle_deg(itk_image) < tol_deg:
+        return itk_image
+    size = np.array(itk_image.GetSize())
+    corners = np.array([[i, j, k] for i in (0, size[0] - 1) for j in (0, size[1] - 1) for k in (0, size[2] - 1)], float)
+    phys = np.array([itk_image.TransformContinuousIndexToPhysicalPoint(c.tolist()) for c in corners])
+    spacing = np.array(itk_image.GetSpacing())
+    lo, hi = phys.min(0), phys.max(0)
+    new_size = np.ceil((hi - lo) / spacing).astype(int) + 1
+    return sitk.Resample(itk_image, [int(v) for v in new_size], sitk.Transform(),
+                         sitk.sitkNearestNeighbor if is_label else sitk.sitkLinear,
+                         lo.tolist(), spacing.tolist(), np.eye(3).ravel().tolist(),
+                         0 if is_label else -1024.0, itk_image.GetPixelID())
+
+
 def load_and_standardize_mha(
     file_path: Path | str,
     is_label: bool = False,
@@ -67,6 +94,11 @@ def load_and_standardize_mha(
     # Reorientar forzosamente a LPS (Left-Posterior-Superior)
     # Permuta ejes y voltea según sea necesario sin interpolación (mantiene etiquetas enteras intactas)
     itk_image = sitk.DICOMOrient(itk_image, "LPS")
+    # Volumen oblicuo (gantry inclinado): DICOMOrient solo permuta y voltea, así que queda una
+    # rotación residual. Se remuestrea a la grilla LPS alineada con los ejes usando los cosenos
+    # directores del header. En PENGWIN no ocurre (los 100 casos están alineados), pero un
+    # volumen externo sí puede traerlo.
+    itk_image = align_to_axes(itk_image, is_label)
 
     # Espaciado físico: SimpleITK entrega (sx, sy, sz) -> Invertir a (sz, sy, sx)
     spacing_xyz = itk_image.GetSpacing()
