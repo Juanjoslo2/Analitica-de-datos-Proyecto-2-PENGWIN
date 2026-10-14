@@ -97,7 +97,7 @@ Validación cruzada del ajuste (semana 10): `scripts/cv_folds.py` arma los 5 fol
 
 ## Dashboard
 
-`05_app/` es una app FastAPI con una sola página: visualizador 1 (MIP del volumen crudo con umbral de 250 HU, sin modelo), visualizador 2 (corte a corte con slider: cajas, máscaras por fragmento y la distancia de separación escrita sobre cada secundario) y visualizador 3 (marching cubes + Plotly Mesh3d con la distancia junto a cada fragmento). Acepta un volumen `.mha`, `.nii`, `.nii.gz` o `.nrrd` (subido por trozos de 8 MB) o la imagen de un corte suelto, y trae tres casos de test ya procesados.
+`05_app/` es una app FastAPI con una sola página: visualizador 1 (MIP del volumen crudo con umbral de 250 HU, sin modelo), visualizador 2 (corte a corte con slider: cajas, máscaras por fragmento y la distancia de separación escrita sobre cada secundario) y visualizador 3 (marching cubes + Plotly Mesh3d con la distancia junto a cada fragmento). Acepta un volumen `.mha`, `.nii`, `.nii.gz` o `.nrrd` (subido en trozos de 8 MB comprimidos con gzip en el navegador, 4 a la vez por WebSocket) o la imagen de un corte suelto, y trae tres casos de test ya procesados.
 
 ```powershell
 # local

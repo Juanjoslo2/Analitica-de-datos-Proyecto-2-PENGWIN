@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Callable, Dict, List
 
 import numpy as np
+import SimpleITK as sitk
 import torch
 from PIL import Image, ImageDraw, ImageFont
 from scipy import ndimage as ndi
@@ -44,6 +45,30 @@ NOMBRE = {"SA": "Sacro", "LI": "Coxal izq.", "RI": "Coxal der."}
 COLOR = {"SA": (42, 120, 214), "LI": (235, 104, 52), "RI": (27, 175, 122)}
 AVISO = "Uso académico. No es un dispositivo médico ni apoya decisiones quirúrgicas reales."
 ESCALA = 2                                  # el corte de 256 px se dibuja a 512 px
+
+
+class NoEsCT(ValueError):
+    """El archivo se leyó bien pero no es un CT en unidades Hounsfield; el mensaje va tal cual al usuario."""
+
+
+class EsMascara(NoEsCT):
+    """Subieron la máscara de los expertos (PENGWIN_CT_train_labels) en vez del CT."""
+
+
+def revisar_ct(hu: np.ndarray) -> None:
+    """Frena lo que no es un CT antes de gastar GPU. Una máscara de etiquetas (la carpeta
+    PENGWIN_CT_train_labels) o un volumen sin aire ni hueso en HU daban MIP negras y 0 fragmentos
+    sin ningún aviso."""
+    lo, hi = float(hu.min()), float(hu.max())
+    distintos = np.unique(hu[::4, ::4, ::4]).size
+    if lo >= 0 and hi <= 255 and distintos <= 64:
+        raise EsMascara("Este archivo es una máscara, no un CT: la carpeta PENGWIN_CT_train_labels trae lo que marcaron "
+                        f"los expertos (0 = fondo y un número por fragmento; aquí {distintos} valores, de 0 a {hi:.0f}), "
+                        "no la tomografía. El CT de cada caso tiene el mismo nombre y está en "
+                        "PENGWIN_CT_train_images_part1 (casos 001-050) o _part2 (051-100).")
+    if lo > -500 or hi < 250:
+        raise NoEsCT(f"El volumen no parece un CT en unidades Hounsfield: va de {lo:.0f} a {hi:.0f}, y un CT tiene aire "
+                     "cerca de −1000 HU y hueso por encima de 250 HU.")
 
 
 def _fuente(tam: int):
@@ -77,10 +102,61 @@ class Modelo:
         self.nombre = f"{ckpt.parent.name} · {config.name}"
 
 
+# ---------------------------------------------------------------- máscara subida en vez del CT
+
+def _particion() -> Dict[str, str]:
+    ruta = REPO / "01_data" / "splits.json"
+    if not ruta.exists():
+        return {}
+    return {c: p for p, casos in json.loads(ruta.read_text(encoding="utf-8"))["splits"].items() for c in casos}
+
+
+PARTICION = _particion()
+NOMBRE_PARTICION = {"train": "entrenamiento", "val": "validación", "test": "test"}
+NOTA_PARTICION = {
+    "test": "Caso de test: el modelo nunca lo vio, así que esta comparación es una medición honesta.",
+    "val": "Caso de validación: no se entrenó con él, pero sirvió para elegir el modelo y el posproceso.",
+    "train": "Caso de entrenamiento: el modelo aprendió con esta misma máscara, así que la comparación sale "
+             "optimista. Para medir de verdad use un caso de test.",
+}
+
+
+def firma(ruta: Path | str) -> tuple:
+    """Geometría del header (tamaño, spacing, origen, dirección). En PENGWIN cada caso tiene la suya y
+    la máscara comparte la de su CT (comprobado en los 100): así se reconoce el caso sin fiarse del nombre."""
+    f = sitk.ImageFileReader()
+    f.SetFileName(str(ruta))
+    f.ReadImageInformation()
+    return (tuple(f.GetSize()), tuple(round(s, 3) for s in f.GetSpacing()),
+            tuple(round(o, 1) for o in f.GetOrigin()), tuple(round(d, 3) for d in f.GetDirection()))
+
+
+def indice_cts(carpeta: Path) -> Dict[tuple, Path]:
+    """Firma -> CT, para los CT de PENGWIN guardados en el servidor (PENGWIN_CT_train_images_part*)."""
+    return {firma(r): r for r in sorted(carpeta.glob("PENGWIN_CT_train_images_part*/*.mha"))}
+
+
+def analizar_mascara(modelo: Modelo, ruta_mascara: Path, carpeta: Path, avance: Callable[[str, float], None],
+                     indice: Dict[tuple, Path]) -> bool:
+    """Si subieron la máscara de un caso cuyo CT está en el servidor, analiza ese CT y usa la máscara
+    como referencia (lo mismo que los casos de ejemplo). Devuelve False si el caso no se reconoce."""
+    ct = indice.get(firma(ruta_mascara))
+    if ct is None:
+        return False
+    caso, parte = ct.stem, PARTICION.get(ct.stem)
+    avance(f"Es la máscara del caso {caso}: se analiza su CT, guardado en el servidor, y la máscara queda "
+           "como referencia", 0.05)
+    procesar_volumen(modelo, ct, carpeta, avance, ruta_gt=ruta_mascara,
+                     titulo=f"Caso {caso} · {NOMBRE_PARTICION.get(parte, 'PENGWIN')}",
+                     nota_referencia=NOTA_PARTICION.get(parte))
+    return True
+
+
 # ---------------------------------------------------------------- volumen completo
 
 def procesar_volumen(modelo: Modelo, ruta: Path, carpeta: Path, avance: Callable[[str, float], None],
-                     ruta_gt: Path | None = None) -> Dict:
+                     ruta_gt: Path | None = None, titulo: str | None = None,
+                     nota_referencia: str | None = None) -> Dict:
     """Corre todo el pipeline y deja en ``carpeta`` lo que piden los visualizadores."""
     t0 = time.time()
     carpeta.mkdir(parents=True, exist_ok=True)
@@ -88,6 +164,7 @@ def procesar_volumen(modelo: Modelo, ruta: Path, carpeta: Path, avance: Callable
     hu, spacing, orient = load_and_standardize_mha(ruta)
     if hu.ndim != 3 or min(hu.shape) < 8:
         raise ValueError(f"se esperaba un volumen 3D; llegó {hu.shape}")
+    revisar_ct(hu)
     _mip(hu, spacing, carpeta, avance)
     del hu
 
@@ -137,6 +214,7 @@ def procesar_volumen(modelo: Modelo, ruta: Path, carpeta: Path, avance: Callable
         "fragmentos": fragmentos, "separacion": filas, "separacion_gt": gt_filas, "metricas_gt": metricas_gt,
         "segundos_total": round(time.time() - t0, 1), "segundos_modelo": round(t_mod, 1),
         "ms_por_corte": round(1000 * t_mod / lab.shape[0], 1), "aviso": AVISO,
+        "titulo": titulo, "nota_referencia": nota_referencia,
     }
     (carpeta / "resumen.json").write_text(json.dumps(resumen, default=float), encoding="utf-8")
     avance("Listo", 1.0)

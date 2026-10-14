@@ -30,19 +30,85 @@ $("#fVol").onchange=async ev=>{
   const fd=new FormData();fd.append("nombre",f.name);fd.append("tamano",f.size);
   let r=await fetch("api/subida",{method:"POST",body:fd});
   if(!r.ok){estado((await r.json()).detail,0);return;}
-  const {id}=await r.json();const P=8*1024*1024;
-  for(let o=0;o<f.size;o+=P){
-    for(let intento=0;;intento++){
-      try{r=await fetch("api/subida/"+id,{method:"PUT",body:f.slice(o,o+P)});if(r.ok)break;}catch(e){}
-      if(intento>=3){estado("La subida falló; revise la conexión y vuelva a intentar.",0);return;}
-    }
-    estado(`Subiendo ${(Math.min(o+P,f.size)/1048576).toFixed(0)} / ${(f.size/1048576).toFixed(0)} MB`,0.3*Math.min(o+P,f.size)/f.size);
-  }
+  const {id,trozo:P}=await r.json();
+  try{await subir(f,id,P);}catch(e){estado(e.fatal?`Archivo rechazado: ${e.message}`:"La subida falló; revise la conexión y vuelva a intentar.",0);return;}
   estado("Verificando el archivo…",0.3);
   r=await fetch(`api/subida/${id}/fin`,{method:"POST"});
   if(!r.ok){estado((await r.json()).detail,0);return;}
   esperar(id);
 };
+
+// Subida: trozos de 8 MB comprimidos con gzip y 4 a la vez, cada uno por su WebSocket (= su propia
+// conexión TCP; por HTTP/2 todo iría en una sola y a 0,3 MB/s). Sin WebSocket, PUT de a uno.
+const PARALELO=4,GZIP=typeof CompressionStream!=="undefined";
+const mb=b=>(b/1048576).toFixed(0);
+const dura=s=>s<90?`${Math.max(1,Math.round(s))} s`:`${Math.round(s/60)} min`;
+
+async function subir(f,id,P){
+  const N=Math.ceil(f.size/P),comprimir=GZIP&&!f.name.toLowerCase().endsWith(".gz");
+  let sig=0,listo=0,fallo=null;const t0=performance.now(),abiertos=[];
+  const ws0=await abrirWS(id).catch(()=>null);
+  async function canal(k){
+    let ws=k===0?ws0:await abrirWS(id).catch(()=>null);
+    if(ws)abiertos.push(ws);else if(k>0)return;              // si un canal extra no abre, los demás se reparten sus trozos
+    while(!fallo&&sig<N){
+      const t=await trozo(f,sig++,P,comprimir);
+      for(let intento=0;!fallo;intento++){
+        try{
+          if(!ws0){await enviarPUT(id,t);break;}
+          if(!ws||ws.readyState!==WebSocket.OPEN){ws=await abrirWS(id);abiertos.push(ws);}
+          await enviarWS(ws,t);break;
+        }catch(e){
+          if(e.fatal||intento>=3)throw e;
+          if(ws)ws.close();ws=null;await new Promise(z=>setTimeout(z,1500*(intento+1)));
+        }
+      }
+      listo+=t.n;
+      const s=(performance.now()-t0)/1000,v=listo/s;
+      estado(`Subiendo ${mb(listo)} / ${mb(f.size)} MB · ${(v/1048576).toFixed(1)} MB/s · faltan ~${dura((f.size-listo)/v)}`,0.3*listo/f.size);
+    }
+  }
+  await Promise.all(Array.from({length:ws0?Math.min(PARALELO,N):1},(_,k)=>canal(k).catch(e=>{fallo=fallo||e;})));
+  abiertos.forEach(w=>w.close());
+  if(fallo)throw fallo;
+}
+
+async function trozo(f,i,P,comprimir){
+  const b=f.slice(i*P,Math.min((i+1)*P,f.size));
+  if(comprimir){
+    const c=new Uint8Array(await new Response(b.stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer());
+    if(c.length<0.95*b.size)return {i,n:b.size,z:1,datos:c};   // ya comprimido (p. ej. .mha con CompressedData): va tal cual
+  }
+  return {i,n:b.size,z:0,datos:b};
+}
+
+function abrirWS(id){
+  const u=new URL(`api/subida/${id}/ws`,location.href);u.protocol=u.protocol==="https:"?"wss:":"ws:";
+  return new Promise((ok,mal)=>{
+    const ws=new WebSocket(u);ws.binaryType="arraybuffer";
+    const t=setTimeout(()=>{ws.close();mal(new Error("el WebSocket no abrió"));},15000);
+    ws.onopen=()=>{clearTimeout(t);ok(ws);};
+    ws.onerror=()=>{clearTimeout(t);mal(new Error("el WebSocket no abrió"));};
+  });
+}
+
+function enviarWS(ws,t){
+  return new Promise((ok,mal)=>{
+    const cab=new Uint8Array(9),dv=new DataView(cab.buffer);
+    dv.setUint32(0,t.i,true);dv.setUint32(4,t.n,true);cab[8]=t.z;
+    const reloj=setTimeout(()=>ws.close(),180000);            // trozo atascado: se cierra y se reintenta
+    ws.onmessage=e=>{clearTimeout(reloj);const r=JSON.parse(e.data);
+      if(r.error){const x=new Error(r.error);x.fatal=true;mal(x);}else ok(r);};
+    ws.onclose=()=>{clearTimeout(reloj);mal(new Error("conexión cerrada"));};
+    ws.send(new Blob([cab,t.datos]));
+  });
+}
+
+async function enviarPUT(id,t){
+  const r=await fetch(`api/subida/${id}?i=${t.i}&n=${t.n}&z=${t.z}`,{method:"PUT",body:t.datos});
+  if(r.ok)return r.json();
+  const x=new Error(r.status===400?(await r.json()).detail:`HTTP ${r.status}`);x.fatal=r.status===400||r.status===404;throw x;
+}
 
 function esperar(id){
   const t=setInterval(async()=>{
@@ -118,6 +184,7 @@ function tabla(){
     <td>${f.principal?"—":(f.dist_mm!=null?f.dist_mm.toFixed(2)+" mm":"—")}</td>
     <td>${f.en_contacto==null?"—":(f.en_contacto?"sí":"no")}</td></tr>`).join("");
   const g=R.separacion_gt;$("#gtBloque").classList.toggle("oculto",!g);
+  $("#gtNota").textContent=R.nota_referencia||"";
   if(!g)return;
   const m=R.metricas_gt||{},n=v=>v==null?"—":v.toFixed(3);
   $("#gtMet").innerHTML=[["Dice por fragmento",n(m.dice_fragmento)],["IoU por fragmento",n(m.iou_fragmento)],
