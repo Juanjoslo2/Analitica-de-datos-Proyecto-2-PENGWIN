@@ -1,26 +1,26 @@
 # Semana 12 · estado en ANTON
 
-Actualizado: 2026-10-16 09:52:17 (hora de ANTON)
+Actualizado: 2026-10-16 10:22:20 (hora de ANTON)
 
 **Etapa:** 1 · cribado (fold 0, 12 épocas)
 
 | carril | estado | trabajo | detalle |
 |---|---|---|---|
-| A | running | `110_scr_c13_unetpp` | `s12_c13_unetpp_e12_f0`: 1 épocas hechas · 1293 s/época · val mAP@[.50:.95] 0.668 · Dice región 0.951 · BCE borde train/val 0.106/0.016 |
-| B | running | `110_scr_ref` | `s12_ref_e12_f0`: 2 épocas hechas · 680 s/época · val mAP@[.50:.95] 0.719 · Dice región 0.947 · BCE borde train/val 0.014/0.021 |
-| C | running | `110_scr_c11_wd1e2` | `s12_c11_wd1e2_e12_f0`: 2 épocas hechas · 680 s/época · val mAP@[.50:.95] 0.732 · Dice región 0.941 · BCE borde train/val 0.014/0.018 |
-| D | running | `110_scr_c12_segw32` | `s12_c12_segw32_e12_f0`: 2 épocas hechas · 649 s/época · val mAP@[.50:.95] 0.733 · Dice región 0.939 · BCE borde train/val 0.013/0.021 |
+| A | running | `110_scr_c13_unetpp` | `s12_c13_unetpp_e12_f0`: 2 épocas hechas · 1210 s/época · val mAP@[.50:.95] 0.728 · Dice región 0.946 · BCE borde train/val 0.014/0.019 |
+| B | running | `110_scr_ref` | `s12_ref_e12_f0`: 4 épocas hechas · 751 s/época · val mAP@[.50:.95] 0.756 · Dice región 0.951 · BCE borde train/val 0.014/0.028 |
+| C | running | `110_scr_c11_wd1e2` | `s12_c11_wd1e2_e12_f0`: 4 épocas hechas · 753 s/época · val mAP@[.50:.95] 0.770 · Dice región 0.950 · BCE borde train/val 0.013/0.025 |
+| D | running | `110_scr_c12_segw32` | `s12_c12_segw32_e12_f0`: 4 épocas hechas · 697 s/época · val mAP@[.50:.95] 0.766 · Dice región 0.951 · BCE borde train/val 0.013/0.027 |
 
 ## Máquina
 
 ```
-94 %, 65, 26.39 W
+94 %, 66, 25.61 W
 total       usado       libre  compartido   búf/caché  disponible
 Mem:             121          26          34           1          62          95
-pengwin-s12-D Up 30 minutes
-pengwin-s12-C Up 30 minutes
-pengwin-s12-B Up 30 minutes
-pengwin-s12-A Up 30 minutes
+pengwin-s12-D Up About an hour
+pengwin-s12-C Up About an hour
+pengwin-s12-B Up About an hour
+pengwin-s12-A Up About an hour
 ```
 
 Bitácora (últimas 15 líneas):
