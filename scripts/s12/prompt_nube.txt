@@ -1,0 +1,1 @@
+Proyecto PENGWIN, semana 12. Primero trae los resultados de ANTON: git fetch origin s12-spark && git merge --no-edit origin/s12-spark. Despues lee reports/tuning/s12/TAREA_NUBE.md y cumple ese encargo completo sin preguntar: verificar las decisiones, notebook 04_semana12_borde, documentos e INFORME_NUBE.md. Trabaja en tu propia rama y sube todo al terminar.

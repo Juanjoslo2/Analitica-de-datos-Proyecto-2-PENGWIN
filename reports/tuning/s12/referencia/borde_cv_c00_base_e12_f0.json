@@ -1,0 +1,28 @@
+{
+ "corrida": "cv_c00_base_e12_f0",
+ "objetivo_propio": "edge.npy",
+ "fold": 0,
+ "referencias": {
+  "edge.npy": {
+   "P_media_en_borde_real": 0.2031,
+   "por_umbral": {
+    "0.1": {
+     "precision": 0.3435,
+     "recall": 0.1766
+    },
+    "0.2": {
+     "precision": 0.3522,
+     "recall": 0.1643
+    },
+    "0.3": {
+     "precision": 0.3582,
+     "recall": 0.156
+    },
+    "0.5": {
+     "precision": 0.3681,
+     "recall": 0.1445
+    }
+   }
+  }
+ }
+}
