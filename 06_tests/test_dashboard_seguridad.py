@@ -211,7 +211,8 @@ def test_con_sesion_y_cabeceras(cliente):
     assert cliente.post("/api/subida", data={"nombre": "a.exe", "tamano": 10}).status_code == 400
     malo = b"#!/bin/sh\nrm -rf /\n"
     tid = cliente.post("/api/subida", data={"nombre": "a.mha", "tamano": len(malo)}).json()["id"]
-    assert cliente.put(f"/api/subida/{tid}", content=malo).json()["recibido"] == len(malo)
+    # desde la subida por trozos (14-oct) el PUT lleva el índice y el tamaño sin comprimir del trozo
+    assert cliente.put(f"/api/subida/{tid}?i=0&n={len(malo)}", content=malo).json()["recibido"] == len(malo)
     r = cliente.post(f"/api/subida/{tid}/fin")
     assert r.status_code == 400 and "rechazado" in r.json()["detail"]
     assert cliente.get("/api/trabajo/../../etc/passwd").status_code == 404

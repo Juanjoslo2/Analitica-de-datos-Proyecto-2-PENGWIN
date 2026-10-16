@@ -277,7 +277,11 @@ def _malla(lab: np.ndarray, sp, fragmentos: List[Dict]) -> Dict:
             continue
         sl = ndi.find_objects(m.astype(np.uint8))[0]
         sl = tuple(slice(max(s.start - 2, 0), s.stop + 2) for s in sl)
-        sub = ndi.gaussian_filter(m[sl].astype(np.float32), 0.8)
+        # σ = 0,5 y no 0,8: con 0,8 una lámina de 1 vóxel queda por debajo de 0,5 tras suavizar
+        # (erf(0,44) ≈ 0,47) y desaparece de la malla. En el ala ilíaca del 075 eso agrandaba un
+        # hueco de 12 mm² de la máscara a 33 mm² en el dibujo; con 0,5 queda en 16 mm² y el JSON
+        # pesa lo mismo. El hueco en sí viene de la grilla de 256 px (03_semana11, sección 1.1).
+        sub = ndi.gaussian_filter(m[sl].astype(np.float32), 0.5)
         try:
             v, fc, _, _ = marching_cubes(sub, 0.5, spacing=sp, step_size=2 if f["principal"] else 1)
         except (ValueError, RuntimeError):
