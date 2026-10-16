@@ -1,0 +1,20 @@
+{
+ "metodo": "lambda_k = mean(G) / G_k, sum = 3; G_k = ||grad L_k|| sobre backbone.stages[3] (bloque 4 + CBAM)",
+ "iters": 200,
+ "config": "c13_unetpp.yaml",
+ "G_media": {
+  "cls": 0.13331883423030377,
+  "det": 0.09601596789434552,
+  "seg": 0.015817597408313303
+ },
+ "G_mediana": {
+  "cls": 0.12037351354956627,
+  "det": 0.092653788626194,
+  "seg": 0.015322471503168344
+ },
+ "lambdas": {
+  "cls": 0.2773,
+  "det": 0.3851,
+  "seg": 2.3376
+ }
+}
