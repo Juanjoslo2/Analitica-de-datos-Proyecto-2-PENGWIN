@@ -4,8 +4,9 @@
 #   etapa 2  confirmación de los que pasen (máx. 2): 5 folds × 20 épocas, TTA 5 + edt_hmax fijo
 #   etapa 3  modelo final del ganador (40 épocas, split de siempre) y UNA medición de test
 # Las reglas están en reports/tuning/s12/PREREGISTRO.md y las aplica scripts/s12/decidir.py.
-# Cada etapa (y un latido cada 30 min) se publica en la rama s12-spark del repo privado; al final
-# se abre una sesión de Claude en la nube que redacta los resultados (scripts/s12/prompt_nube.txt).
+# Cada etapa (y un latido cada 30 min) se publica en la rama s12-spark del repo privado. Una tarea
+# programada en la nube (routine de claude.ai) revisa esa rama y, cuando ETAPA dice "terminado",
+# redacta los resultados según reports/tuning/s12/TAREA_NUBE.md.
 #
 # Uso:   tmux new -d -s pengwin-s12 'bash ~/pengwin_s12/scripts/s12/orquestar.sh'
 #        DRY=1 → prueba de humo (1 época de 15 pasos, fold 0, validación en vez de test, sin publicar)
@@ -180,12 +181,4 @@ fi
 for L in A B C D; do touch $J/$L/STOP; done
 etapa "terminado (confirmar: ${CONF:-ninguno} · ganador: ${GANADOR:-ninguno})"
 publicar "fin de la semana 12 en ANTON"
-if [ "$DRY" != 1 ]; then
-  # claude --cloud exige una terminal: va en su propia ventana del tmux, sin tuberías
-  tmux new-window -d -n nube "cd $R && ~/.local/bin/claude --cloud \"\$(cat scripts/s12/prompt_nube.txt)\"; sleep 86400"
-  sleep 180
-  tmux capture-pane -p -t nube -S -200 > $S/nube.log 2>&1
-  log "sesión en la nube lanzada (ventana 'nube' del tmux pengwin-s12); salida en nube.log"
-  publicar "sesión en la nube lanzada"
-fi
 log "orquestador terminado"

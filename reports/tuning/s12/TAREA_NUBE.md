@@ -1,7 +1,8 @@
 # Encargo para la sesión en la nube · semana 12
 
-La lanza ANTON (la DGX Spark del equipo) al terminar `scripts/s12/orquestar.sh`. El usuario no está
-pendiente: trabaja solo y deja todo listo para que él lo revise. Proyecto: PENGWIN (fracturas pélvicas en
+Lo cumple una tarea programada en la nube (routine de claude.ai) cuando ANTON, la DGX Spark del equipo,
+termina `scripts/s12/orquestar.sh`, es decir, cuando `reports/tuning/s12/ETAPA` de la rama `s12-spark`
+empieza por «terminado». El usuario no está pendiente: trabaja solo y deja todo listo para que él lo revise. Proyecto: PENGWIN (fracturas pélvicas en
 CT), Proyecto Integrador Corte 2, Analítica de Datos, UAO. La sustentación es el miércoles 21 de octubre.
 
 ## 0. Antes de empezar
@@ -85,4 +86,5 @@ Escribe `reports/tuning/s12/INFORME_NUBE.md` con lo esencial en 10-15 líneas:
 - qué queda pendiente para el usuario (por ejemplo, llevar los cambios a la rama `Nicolas` del repo del
   equipo, copiar un checkpoint, actualizar el informe en Word).
 
-Súbelo y termina.
+Sube todo a la rama `claude/nube-s12` con un archivo `reports/tuning/s12/NUBE_HECHO` (una línea con la
+fecha): es la marca que hace que las siguientes corridas de la tarea programada salgan sin repetir el trabajo.
