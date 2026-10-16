@@ -1,0 +1,10 @@
+2026-10-16 09:22:12 orquestador arriba (DRY=0) en 744b375
+carril A arriba (pengwin-s12-A)
+carril B arriba (pengwin-s12-B)
+carril C arriba (pengwin-s12-C)
+carril D arriba (pengwin-s12-D)
+2026-10-16 09:22:13 == 1 · cribado (fold 0, 12 épocas)
+2026-10-16 09:22:13 encolado 110_scr_c13_unetpp en el carril A
+2026-10-16 09:22:13 encolado 110_scr_ref en el carril B
+2026-10-16 09:22:13 encolado 110_scr_c11_wd1e2 en el carril C
+2026-10-16 09:22:13 encolado 110_scr_c12_segw32 en el carril D
