@@ -144,8 +144,30 @@ class MultiTaskLoss(nn.Module):
             parts["dist_reg"] = (err * hueso).sum() / hueso.sum().clamp(min=1.0)
             parts["seg"] = parts["seg"] + parts["dist_reg"]
 
+        # [semana 12] Supervisión profunda (U-Net++): las salidas intermedias X^{0,1}, X^{0,2} solo
+        # llegan en model.train(). L_seg pasa a ser el promedio de las tres salidas, como el
+        # DeepSupervisionLoss de la sesión 2; sigue siendo UN término. Los componentes que se
+        # registran (seg_ce, edge_bce, ...) son los de la salida final, comparables con validación.
+        aux = out.get("seg_aux") or []
+        if aux:
+            parts["seg_final"] = parts["seg"]
+            parts["seg"] = (parts["seg"] + sum(self._seg_aux(a, batch) for a in aux)) / (1 + len(aux))
+
         parts["total"] = sum(self.lambdas[k] * parts[k] for k in self.terms)
         return parts
+
+    def _seg_aux(self, out: Dict[str, torch.Tensor], batch: Dict) -> torch.Tensor:
+        """L_seg (semántica + borde) de una salida intermedia de la supervisión profunda."""
+        seg = out["seg_logits"].float()
+        sem = batch["semantic"]
+        onehot = F.one_hot(sem, seg.shape[1]).permute(0, 3, 1, 2).float()
+        loss = F.cross_entropy(seg, sem, weight=self.ce_weights) + soft_dice_loss(seg.softmax(1)[:, 1:], onehot[:, 1:])
+        if "fracture_edge" in self.seg_outputs:
+            edge = out["edge_logits"].float()
+            pw = torch.tensor(self.edge_pos_weight, device=edge.device)
+            loss = loss + F.binary_cross_entropy_with_logits(edge, batch["edge"], pos_weight=pw) \
+                + soft_dice_loss(torch.sigmoid(edge), batch["edge"])
+        return loss
 
 
 # --------------------------------------------------------------------------- calibración de λ

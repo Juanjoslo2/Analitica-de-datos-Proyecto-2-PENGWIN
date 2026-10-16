@@ -30,7 +30,7 @@ import torch.nn as nn
 
 from pengwin.models.backbone import build_backbone, load_fundidora_weights
 from pengwin.models.heads import (
-    DEFAULT_SEG_OUTPUTS, ClassificationHead, GridDetectionHead, SegmentationHead, TopDownNeck,
+    DEFAULT_SEG_OUTPUTS, ClassificationHead, GridDetectionHead, NestedSegmentationHead, SegmentationHead, TopDownNeck,
 )
 
 
@@ -48,12 +48,26 @@ class PengwinNet(nn.Module):
         self.cls_head = ClassificationHead(c4, n_cls)
         self.det_head = GridDetectionHead(neck, n_cls, self.stride)
         self.seg_outputs = tuple(model_cfg.get("seg_outputs", DEFAULT_SEG_OUTPUTS) or DEFAULT_SEG_OUTPUTS)
-        self.seg_head = SegmentationHead(neck, c2, c1, num_classes=n_cls + 1,
-                                         spatial_dropout=float(model_cfg.get("seg_spatial_dropout", 0.0)),
-                                         outputs=self.seg_outputs)
+        # Semana 12: decodificador de segmentación. "unet" = el de siempre (checkpoints viejos sin la
+        # clave cargan igual); "unetpp" = U-Net++ con C0 a resolución completa y supervisión profunda.
+        self.seg_decoder = str(model_cfg.get("seg_decoder", "unet"))
+        seg_dropout = float(model_cfg.get("seg_spatial_dropout", 0.0))
+        if self.seg_decoder == "unet":
+            self.seg_head = SegmentationHead(neck, c2, c1, num_classes=n_cls + 1,
+                                             width=int(model_cfg.get("seg_width", 64)),
+                                             spatial_dropout=seg_dropout, outputs=self.seg_outputs)
+        elif self.seg_decoder == "unetpp":
+            self.seg_head = NestedSegmentationHead(c1, c1, c2, neck, num_classes=n_cls + 1, spatial_dropout=seg_dropout,
+                                                   outputs=self.seg_outputs,
+                                                   deep_supervision=bool(model_cfg.get("seg_deep_supervision", True)))
+        else:
+            raise ValueError(f"model.seg_decoder desconocido: {self.seg_decoder} (unet | unetpp)")
 
     def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
-        c1, c2, c3, c4 = self.backbone(x)
+        if self.seg_decoder == "unetpp":
+            c0, (c1, c2, c3, c4) = self.backbone.forward_full(x)
+        else:
+            c1, c2, c3, c4 = self.backbone(x)
         p3 = self.neck(c3, c4)
         det_scores, det_ltrb = self.det_head(p3)
         out = {
@@ -61,7 +75,10 @@ class PengwinNet(nn.Module):
             "det_scores": det_scores,
             "det_ltrb": det_ltrb,
         }
-        out.update(self.seg_head(p3, c2, c1, x.shape[-2:]))
+        if self.seg_decoder == "unetpp":
+            out.update(self.seg_head(c0, c1, c2, p3, x.shape[-2:]))
+        else:
+            out.update(self.seg_head(p3, c2, c1, x.shape[-2:]))
         return out
 
     def gammas(self) -> Dict[str, float]:

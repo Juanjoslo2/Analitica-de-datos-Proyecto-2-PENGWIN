@@ -71,9 +71,12 @@ class FundidoraStage(nn.Module):
         # así que apagar píxeles sueltos casi no regulariza). Solo actúa en model.train().
         self.drop = nn.Dropout2d(spatial_dropout) if spatial_dropout > 0 else nn.Identity()
 
+    def features(self, x: torch.Tensor) -> torch.Tensor:
+        """Mapa del bloque antes del MaxPool (misma resolución que la entrada del bloque)."""
+        return self.res(torch.relu(self.bn(self.conv(x))))
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.res(torch.relu(self.bn(self.conv(x))))
-        return self.drop(self.cbam(self.pool(x)))
+        return self.drop(self.cbam(self.pool(self.features(x))))
 
 
 class FundidoraBackbone(nn.Module):
@@ -109,6 +112,19 @@ class FundidoraBackbone(nn.Module):
             x = stage(x)
             feats.append(x)
         return feats
+
+    def forward_full(self, x: torch.Tensor):
+        """Como ``forward``, pero devuelve además C0: la salida del bloque 1 ANTES de su MaxPool
+        (stride 1, ``widths[0]`` canales). Es un mapa del mismo backbone compartido, no una rama
+        nueva: el decodificador U-Net++ lo usa como fila de resolución completa [semana 12]."""
+        first = self.stages[0]
+        c0 = first.features(x)
+        x = first.drop(first.cbam(first.pool(c0)))
+        feats = [x]
+        for stage in self.stages[1:]:
+            x = stage(x)
+            feats.append(x)
+        return c0, feats
 
     def shared_parameters(self) -> List[nn.Parameter]:
         """Parámetros de la última capa compartida (bloque 4 + su CBAM) [DD §4].

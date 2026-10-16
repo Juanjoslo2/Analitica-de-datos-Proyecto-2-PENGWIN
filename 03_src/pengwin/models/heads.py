@@ -14,6 +14,10 @@ P3 sale de un cuello ligero (``TopDownNeck``) que mezcla C3 con C4 subido ×2, c
 camino descendente de una FPN: la detección a stride 8 recibe contexto del nivel más
 profundo (el que pasó por el CBAM del bloque 4).
 
+``model.seg_decoder`` (semana 12): ``unet`` (el de siempre) o ``unetpp`` = ``NestedSegmentationHead``,
+decodificador U-Net++ (Zhou et al., 2018; sesión 2 de segmentación del curso) con una fila de
+resolución completa (C0, el bloque 1 antes de su MaxPool) y supervisión profunda.
+
 ``model.seg_outputs`` (la semántica siempre está; es la etapa 1 de las dos etapas):
     semantic4       4 clases de región -> ``seg_logits``   (obligatoria)
     fracture_edge   borde binario      -> ``edge_logits``  (semanas 9-10)
@@ -168,4 +172,70 @@ class SegmentationHead(nn.Module):
         elif self.derive_edge:
             out["edge_logits"] = (self.edge_logit_from_core3(out["core_logits"]) if self.core is not None
                                   else -out["dist_logits"])
+        return out
+
+
+class NestedSegmentationHead(nn.Module):
+    """Decodificador U-Net++ [semana 12] sobre C0 (s1), C1 (s2), C2 (s4) y P3 (s8).
+
+    Rejilla de nodos anidados (Zhou et al., 2018), como la ``FundidoraUNetPP`` de la sesión 2 de
+    segmentación, con i = nivel (0 = resolución completa) y j = columna:
+
+        X^{i,0} = [C0, C1, C2, P3]
+        X^{i,j} = H([X^{i,0}, …, X^{i,j−1}, up(X^{i+1,j−1})]),   j ≥ 1, i + j ≤ 3
+
+    H = dos conv3×3-BN-ReLU y up = bilineal. Cada nodo de la fila 0 (X^{0,1}, X^{0,2}, X^{0,3}) tiene
+    su propia salida 1×1 (semántica + borde). En ``model.train()`` las dos primeras viajan en
+    ``seg_aux`` para la supervisión profunda (la pérdida de segmentación se promedia sobre las tres);
+    en ``model.eval()`` solo sale X^{0,3}, así que inferencia, TTA y posproceso no cambian.
+
+    Diferencias con el ``SegmentationHead`` de siempre:
+    - recibe C0, el mapa del bloque 1 antes del MaxPool. Hasta ahora lo más fino que veía el
+      decodificador era C1 (stride 2, 2,7 mm por celda) y la salida de 256 px era un upsample
+      bilineal más una conv;
+    - las skips no se concatenan de golpe: cada nivel pasa por nodos intermedios (la "brecha
+      semántica" del paper);
+    - el dropout espacial va en X^{2,1} (stride 4, 64 canales), el mismo lugar que en el otro.
+    Solo admite ``semantic4`` + ``fracture_edge``.
+    """
+
+    def __init__(self, c0: int, c1: int, c2: int, p3: int, num_classes: int = 4, spatial_dropout: float = 0.0,
+                 outputs: Sequence[str] = DEFAULT_SEG_OUTPUTS, deep_supervision: bool = True):
+        super().__init__()
+        self.outputs = tuple(outputs)
+        if set(self.outputs) - {"semantic4", "fracture_edge"} or "semantic4" not in self.outputs:
+            raise ValueError("seg_decoder: unetpp solo admite model.seg_outputs = [semantic4, fracture_edge]")
+        self.ch = (c0, c1, c2, p3)
+        self.depth = len(self.ch) - 1                                   # 3 columnas de nodos
+        self.nodes = nn.ModuleDict()
+        for j in range(1, self.depth + 1):
+            for i in range(0, self.depth + 1 - j):
+                c_in = j * self.ch[i] + self.ch[i + 1]                  # j mapas de su nivel + el de abajo
+                self.nodes[f"x{i}_{j}"] = nn.Sequential(conv_bn_relu(c_in, self.ch[i]), conv_bn_relu(self.ch[i], self.ch[i]))
+        self.drop = nn.Dropout2d(spatial_dropout) if spatial_dropout > 0 else nn.Identity()
+        self.semantic = nn.ModuleList([nn.Conv2d(c0, num_classes, 1) for _ in range(self.depth)])
+        self.edge = (nn.ModuleList([nn.Conv2d(c0, 1, 1) for _ in range(self.depth)])
+                     if "fracture_edge" in self.outputs else None)
+        self.deep_supervision = deep_supervision
+
+    def _salida(self, x: torch.Tensor, j: int, out_size) -> Dict[str, torch.Tensor]:
+        if x.shape[-2:] != tuple(out_size):
+            x = F.interpolate(x, size=out_size, mode="bilinear", align_corners=False)
+        out = {"seg_logits": self.semantic[j](x)}
+        if self.edge is not None:
+            out["edge_logits"] = self.edge[j](x)
+        return out
+
+    def forward(self, c0: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p3: torch.Tensor,
+                out_size) -> Dict[str, torch.Tensor]:
+        X = {(0, 0): c0, (1, 0): c1, (2, 0): c2, (3, 0): p3}
+        for j in range(1, self.depth + 1):
+            for i in range(0, self.depth + 1 - j):
+                below = X[(i + 1, j - 1)]
+                up = F.interpolate(below, size=X[(i, 0)].shape[-2:], mode="bilinear", align_corners=False)
+                x = self.nodes[f"x{i}_{j}"](torch.cat([X[(i, k)] for k in range(j)] + [up], dim=1))
+                X[(i, j)] = self.drop(x) if (i, j) == (2, 1) else x
+        out = self._salida(X[(0, self.depth)], self.depth - 1, out_size)
+        if self.training and self.deep_supervision:
+            out["seg_aux"] = [self._salida(X[(0, j)], j - 1, out_size) for j in range(1, self.depth)]
         return out
