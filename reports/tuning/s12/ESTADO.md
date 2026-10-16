@@ -1,20 +1,20 @@
 # Semana 12 · estado en ANTON
 
-Actualizado: 2026-10-16 10:52:24 (hora de ANTON)
+Actualizado: 2026-10-16 11:22:27 (hora de ANTON)
 
 **Etapa:** 1 · cribado (fold 0, 12 épocas)
 
 | carril | estado | trabajo | detalle |
 |---|---|---|---|
-| A | running | `110_scr_c13_unetpp` | `s12_c13_unetpp_e12_f0`: 4 épocas hechas · 1294 s/época · val mAP@[.50:.95] 0.760 · Dice región 0.959 · BCE borde train/val 0.013/0.027 |
-| B | running | `110_scr_ref` | `s12_ref_e12_f0`: 7 épocas hechas · 713 s/época · val mAP@[.50:.95] 0.789 · Dice región 0.958 · BCE borde train/val 0.011/0.031 |
-| C | running | `110_scr_c11_wd1e2` | `s12_c11_wd1e2_e12_f0`: 7 épocas hechas · 713 s/época · val mAP@[.50:.95] 0.794 · Dice región 0.954 · BCE borde train/val 0.010/0.033 |
-| D | running | `110_scr_c12_segw32` | `s12_c12_segw32_e12_f0`: 7 épocas hechas · 659 s/época · val mAP@[.50:.95] 0.796 · Dice región 0.955 · BCE borde train/val 0.011/0.025 |
+| A | running | `110_scr_c13_unetpp` | `s12_c13_unetpp_e12_f0`: 5 épocas hechas · 1076 s/época · val mAP@[.50:.95] 0.756 · Dice región 0.957 · BCE borde train/val 0.012/0.025 |
+| B | running | `110_scr_ref` | `s12_ref_e12_f0`: 9 épocas hechas · 818 s/época · val mAP@[.50:.95] 0.811 · Dice región 0.957 · BCE borde train/val 0.009/0.033 |
+| C | running | `110_scr_c11_wd1e2` | `s12_c11_wd1e2_e12_f0`: 9 épocas hechas · 818 s/época · val mAP@[.50:.95] 0.805 · Dice región 0.956 · BCE borde train/val 0.009/0.030 |
+| D | running | `110_scr_c12_segw32` | `s12_c12_segw32_e12_f0`: 9 épocas hechas · 724 s/época · val mAP@[.50:.95] 0.812 · Dice región 0.957 · BCE borde train/val 0.009/0.031 |
 
 ## Máquina
 
 ```
-95 %, 66, 26.42 W
+93 %, 66, 25.80 W
 total       usado       libre  compartido   búf/caché  disponible
 Mem:             121          26          34           1          62          95
 pengwin-s12-D Up 2 hours
