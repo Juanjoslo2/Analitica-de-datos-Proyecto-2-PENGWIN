@@ -474,3 +474,29 @@ Detalle en `04_notebook/03_semana11.ipynb`.
   contacto con su principal y 8 quedaron absorbidos por él. Es la limitación del model card.
 - **Matriz de confusión** (`scripts/confusion.py`), **Grad-CAM con y sin CBAM** (`scripts/gradcam.py`) y
   **model cards** generados desde los reportes (`scripts/model_cards.py` → `reports/model_cards/`).
+
+## 15. Semana 12: sobreajuste del borde
+
+Detalle en `04_notebook/04_semana12_borde.ipynb`; reglas escritas antes de entrenar en
+`reports/tuning/s12/PREREGISTRO.md`.
+
+La cabeza de borde sobreajusta (BCE de validación con mínimo en la época 0-1 y subiendo, mientras la de
+train baja). Se probaron los tres remedios que faltaban. Cribado: fold 0, 12 épocas, mejor combinación de
+la misma grilla de posproceso; pasa quien tenga Dice por fragmento ≥ μ + 2σ de cinco referencias
+(`c00_base` con 4 semillas + el control `s12_ref`) e IoU ≥ su media.
+
+| Candidato | Cambio | Dice frag | z | IoU frag | Decisión |
+|---|---|---|---|---|---|
+| referencias (5) | `c00_base` | μ 0,679, σ 0,009 | — | 0,609 | umbral 0,696 |
+| `c11_wd1e2` | `weight_decay` 1e-4 → 1e-2 | 0,683 | 0,43 | 0,620 | descartado |
+| `c12_segw32` | decodificador de 64 a 32 canales | 0,690 | 1,25 | 0,635 | descartado |
+| `c13_unetpp` | decodificador U-Net++ con supervisión profunda | 0,693 | 1,66 | 0,636 | descartado |
+
+- Ninguno pasa; no hubo confirmación en 5 folds, ni modelo nuevo, ni segunda medición de test. El modelo
+  final sigue siendo `v2_last` + `configs/tuned.yaml`.
+- El control `s12_ref` (0,682) cae dentro de las referencias de la Fase 1 (z = +0,35): el código nuevo no
+  cambió el modelo base.
+- Las curvas de los cuatro son iguales: ningún cambio cierra la brecha train-validación del borde.
+  U-Net++ marca un borde más preciso (0,43 contra 0,37 a umbral 0,2) con el mismo recall (0,16).
+- Con estos, nueve remedios estándar no mueven el borde. Apunta al límite de la etiqueta a 256 px
+  (1,36 mm por píxel), no a la capacidad ni a la regularización de la cabeza.
