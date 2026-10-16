@@ -20,11 +20,25 @@ def sh(cmd):
         return f"({e})"
 
 
-def ultima_epoca(log: Path):
-    if not log.exists():
+def ultima_epoca(job: Path):
+    """Progreso de la corrida del trabajo, leído de runs/<nombre>/history.csv.
+
+    El log del trabajo pasa por un grep que guarda la salida en búfer hasta el final, así que no
+    sirve para ver el avance; el historial se escribe al cerrar cada época."""
+    m = re.search(r"--name (\S+)", job.read_text(encoding="utf-8", errors="replace")) if job.exists() else None
+    if not m:
         return ""
-    lineas = [l for l in log.read_text(encoding="utf-8", errors="replace").splitlines() if re.match(r"\s*época", l)]
-    return lineas[-1].strip() if lineas else ""
+    h = REPO / "runs" / m.group(1) / "history.csv"
+    if not h.exists():
+        return f"`{m.group(1)}`: calibrando λ o en la primera época"
+    filas = [l.split(",") for l in h.read_text(encoding="utf-8").splitlines()]
+    cab, datos = filas[0], filas[1:]
+    if not datos:
+        return f"`{m.group(1)}`: primera época en curso"
+    u = dict(zip(cab, datos[-1]))
+    return (f"`{m.group(1)}`: {len(datos)} épocas hechas · {float(u['seconds']):.0f} s/época · "
+            f"val mAP@[.50:.95] {float(u['mAP@[.50:.95]']):.3f} · Dice región {float(u['dice_hueso']):.3f} · "
+            f"BCE borde train/val {float(u['train_edge_bce']):.3f}/{float(u['val_edge_bce']):.3f}")
 
 
 print(f"# Semana 12 · estado en ANTON\n\nActualizado: {time.strftime('%Y-%m-%d %H:%M:%S')} (hora de ANTON)\n")
@@ -34,7 +48,7 @@ print("| carril | estado | trabajo | detalle |\n|---|---|---|---|")
 for carril in sorted(p.name for p in J.iterdir() if p.is_dir()) if J.exists() else []:
     for est in ("running", "pending", "failed", "done"):
         for f in sorted((J / carril / est).glob("*.sh")):
-            det = ultima_epoca(f.with_suffix(".sh.log")) if est == "running" else ""
+            det = ultima_epoca(f) if est == "running" else ""
             if est == "failed":
                 log = f.with_suffix(".sh.log")
                 det = (log.read_text(encoding="utf-8", errors="replace").strip().splitlines() or [""])[-1][:160] if log.exists() else ""
