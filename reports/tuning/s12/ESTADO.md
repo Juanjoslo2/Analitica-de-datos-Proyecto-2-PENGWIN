@@ -1,8 +1,8 @@
 # Semana 12 · estado en ANTON
 
-Actualizado: 2026-10-16 12:30:38 (hora de ANTON)
+Actualizado: 2026-10-16 12:30:40 (hora de ANTON)
 
-**Etapa:** 1 · cribado (fold 0, 12 épocas)
+**Etapa:** terminado (confirmar: ninguno · ganador: ninguno)
 
 | carril | estado | trabajo | detalle |
 |---|---|---|---|
@@ -24,7 +24,7 @@ A confirmar: ninguno
 ## Máquina
 
 ```
-1 %, 54, 9.36 W
+1 %, 53, 9.34 W
 total       usado       libre  compartido   búf/caché  disponible
 Mem:             121           8          52           0          61         113
 pengwin-s12-D Up 3 hours
@@ -47,4 +47,5 @@ carril D arriba (pengwin-s12-D)
 2026-10-16 09:22:13 encolado 110_scr_c11_wd1e2 en el carril C
 2026-10-16 09:22:13 encolado 110_scr_c12_segw32 en el carril D
 2026-10-16 12:30:38 etapa 1 decidida: a confirmar = 'ninguno'
+2026-10-16 12:30:40 == terminado (confirmar: ninguno · ganador: ninguno)
 ```
