@@ -1,0 +1,27 @@
+{
+ "corrida": "s12_ref_e12_f0",
+ "fold": 0,
+ "referencias": {
+  "edge.npy": {
+   "P_media_en_borde_real": 0.2082,
+   "por_umbral": {
+    "0.1": {
+     "precision": 0.3589,
+     "recall": 0.1674
+    },
+    "0.2": {
+     "precision": 0.3696,
+     "recall": 0.1574
+    },
+    "0.3": {
+     "precision": 0.3771,
+     "recall": 0.151
+    },
+    "0.5": {
+     "precision": 0.3879,
+     "recall": 0.1408
+    }
+   }
+  }
+ }
+}
