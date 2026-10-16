@@ -1,0 +1,20 @@
+{
+ "metodo": "lambda_k = mean(G) / G_k, sum = 3; G_k = ||grad L_k|| sobre backbone.stages[3] (bloque 4 + CBAM)",
+ "iters": 200,
+ "config": "c12_segw32.yaml",
+ "G_media": {
+  "cls": 0.13441165400668978,
+  "det": 0.10094253446906805,
+  "seg": 0.049661464192904535
+ },
+ "G_mediana": {
+  "cls": 0.12051770836114883,
+  "det": 0.09817185997962952,
+  "seg": 0.05021101050078869
+ },
+ "lambdas": {
+  "cls": 0.5955,
+  "det": 0.7929,
+  "seg": 1.6116
+ }
+}
