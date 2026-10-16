@@ -46,6 +46,8 @@ PP_DEFAULTS = {
     "core_seed_depth_mm": 0.0,  # method="core3": erosión extra por distancia del núcleo (0 = ninguna)
     "hmax_h_mm": 1.5,          # method="hmax": dinámica de las h-máximas de la distancia [F2C1]
     "dist_max_mm": 8.0,         # method="dist": recorte del mapa predicho (= loss.dist_max_mm) [F2B2]
+    "fill_holes_mm": 0.0,       # cierre de huecos de hueso delgado, radio en mm (0 = no) [03_semana11 §1.2]
+    "fill_regions": "todas",    # "todas" o "coxales": dónde se aplica el cierre
 }
 
 
@@ -65,7 +67,7 @@ def instance_kwargs(pp: dict) -> dict:
     """Del bloque ``postprocess`` resuelto a los argumentos con nombre de ``separate_instances``."""
     kw = {k: pp[k] for k in ("edge_threshold", "min_fragment_cm3", "max_fragments", "seed_depth_mm",
                              "seed_min_cm3", "edge_weight", "core_threshold", "core_seed_depth_mm",
-                             "dist_max_mm", "hmax_h_mm")}
+                             "dist_max_mm", "hmax_h_mm", "fill_holes_mm", "fill_regions")}
     kw["method"] = pp["instance_method"]
     return kw
 
@@ -373,7 +375,7 @@ def separate_instances(semantic: np.ndarray, edge: np.ndarray, spacing_zyx: Sequ
                        seed_depth_mm: float = 4.0, seed_min_cm3: float = 0.02, edge_weight: float = 5.0,
                        core: np.ndarray | None = None, core_threshold: float = 0.5,
                        core_seed_depth_mm: float = 0.0, hmax_h_mm: float = 1.5, dist: np.ndarray | None = None,
-                       dist_max_mm: float = 8.0) -> np.ndarray:
+                       dist_max_mm: float = 8.0, fill_holes_mm: float = 0.0, fill_regions: str = "todas") -> np.ndarray:
     """Volumen de etiquetas PENGWIN (0, 1-10 SA, 11-20 LI, 21-30 RI) a partir de semántica + borde.
 
     ``method``:
@@ -389,6 +391,8 @@ def separate_instances(semantic: np.ndarray, edge: np.ndarray, spacing_zyx: Sequ
                  método equivale a "edt".
     La taxonomía se aplica aquí: los ids de cada región se desplazan a 1-10 / 11-20 / 21-30 y
     ``max_fragments`` acota cuántos salen por región.
+    Con ``fill_holes_mm`` > 0, al final se cierran los huecos de hueso delgado de cada fragmento
+    (``fill_thin_holes``) en las regiones de ``fill_regions``.
     """
     labels = np.zeros(semantic.shape, np.uint8)
     for r in (1, 2, 3):
@@ -410,4 +414,42 @@ def separate_instances(semantic: np.ndarray, edge: np.ndarray, spacing_zyx: Sequ
         else:
             frag = separate_region(semantic == r, edge, spacing_zyx, edge_threshold, min_fragment_cm3, max_fragments)
         labels[frag > 0] = (r - 1) * 10 + frag[frag > 0]
+    if fill_holes_mm > 0:
+        labels = fill_thin_holes(labels, spacing_zyx, fill_holes_mm, (2, 3) if fill_regions == "coxales" else (1, 2, 3))
     return labels
+
+
+def fill_thin_holes(labels: np.ndarray, spacing_zyx: Sequence[float], radius_mm: float,
+                    regions: Sequence[int] = (1, 2, 3), shape: str = "bola") -> np.ndarray:
+    """Cierra los huecos que la grilla de 256 px abre en hueso delgado [03_semana11 §1.1 y §1.2].
+
+    Para cada fragmento de ``regions`` (1 SA, 2 LI, 3 RI): cierre morfológico (dilatación y luego
+    erosión) con una bola de radio ``radius_mm`` en mm (``shape="caja"``: un cubo de ese semilado).
+    Solo se añaden vóxeles de fondo: no se le quita nada a ningún fragmento ni se pisa otro, así que
+    los fragmentos y sus ids no cambian.
+
+    Ojo: en una lámina de un vóxel (el ala ilíaca a 1,36 mm/px) el cierre no es monótono con el
+    radio, porque el elemento puede "asomarse" por el hueco desde un lado de la lámina. En el hueco
+    del caso 075 la bola lo deja en 1 px con 3 mm y lo cierra con 7 mm; el cubo necesita 10 mm.
+    Lo que esto le cuesta a las métricas está en ``scripts/rellenar_huecos.py``.
+    """
+    r = [int(radius_mm // s) for s in spacing_zyx]
+    if radius_mm <= 0 or max(r) == 0:
+        return labels
+    if shape == "bola":
+        g = np.ogrid[tuple(slice(-k, k + 1) for k in r)]
+        ball = sum((gi * s) ** 2 for gi, s in zip(g, spacing_zyx)) <= radius_mm ** 2
+    else:
+        ball = np.ones([2 * k + 1 for k in r], bool)
+    pad = [2 * k + 1 for k in r]                 # margen para que la erosión no muerda en el borde del recorte
+    out = labels.copy()
+    for fid in np.unique(labels):
+        if fid == 0 or (int(fid) - 1) // 10 + 1 not in regions:
+            continue
+        m = labels == fid
+        sl = _bbox(m, pad=max(r) + 1)
+        sub = np.pad(m[sl], [(p, p) for p in pad])
+        closed = ndi.binary_closing(sub, structure=ball)[tuple(slice(p, -p) for p in pad)]
+        view = out[sl]
+        view[closed & (view == 0)] = fid
+    return out

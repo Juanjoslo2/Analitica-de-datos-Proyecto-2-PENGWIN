@@ -1,4 +1,4 @@
-"""Huecos que abre la grilla de 256 px en hueso delgado (semana 12).
+"""Huecos que abre la grilla de 256 px en hueso delgado (semana 11).
 
 En la reconstrucción 3D del caso 075 el ala ilíaca izquierda sale con un hueco que no es una fractura.
 Este script mide de dónde viene:

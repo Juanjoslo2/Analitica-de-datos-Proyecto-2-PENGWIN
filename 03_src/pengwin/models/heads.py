@@ -14,7 +14,7 @@ P3 sale de un cuello ligero (``TopDownNeck``) que mezcla C3 con C4 subido ×2, c
 camino descendente de una FPN: la detección a stride 8 recibe contexto del nivel más
 profundo (el que pasó por el CBAM del bloque 4).
 
-``model.seg_decoder`` (semana 12): ``unet`` (el de siempre) o ``unetpp`` = ``NestedSegmentationHead``,
+``model.seg_decoder`` (semana 11): ``unet`` (el de siempre) o ``unetpp`` = ``NestedSegmentationHead``,
 decodificador U-Net++ (Zhou et al., 2018; sesión 2 de segmentación del curso) con una fila de
 resolución completa (C0, el bloque 1 antes de su MaxPool) y supervisión profunda.
 
@@ -176,7 +176,7 @@ class SegmentationHead(nn.Module):
 
 
 class NestedSegmentationHead(nn.Module):
-    """Decodificador U-Net++ [semana 12] sobre C0 (s1), C1 (s2), C2 (s4) y P3 (s8).
+    """Decodificador U-Net++ [semana 11] sobre C0 (s1), C1 (s2), C2 (s4) y P3 (s8).
 
     Rejilla de nodos anidados (Zhou et al., 2018), como la ``FundidoraUNetPP`` de la sesión 2 de
     segmentación, con i = nivel (0 = resolución completa) y j = columna:

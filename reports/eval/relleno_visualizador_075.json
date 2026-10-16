@@ -1,0 +1,45 @@
+{
+ "caso": "075",
+ "hueso": "coxal izquierdo",
+ "regiones": "coxales",
+ "variantes": [
+  {
+   "radio_mm": 0.0,
+   "segundos_cierre": 0.0,
+   "segundos_malla": 1.01,
+   "malla_mb": 3.03,
+   "vertices": 13619,
+   "huecos_vistos_mm2": [
+    29.0
+   ],
+   "tuneles_principal": 1,
+   "vóxeles_añadidos": 0
+  },
+  {
+   "radio_mm": 3.0,
+   "segundos_cierre": 0.6,
+   "segundos_malla": 1.03,
+   "malla_mb": 3.02,
+   "vertices": 13621,
+   "huecos_vistos_mm2": [
+    11.5,
+    4.2
+   ],
+   "tuneles_principal": 1,
+   "vóxeles_añadidos": 824
+  },
+  {
+   "radio_mm": 7.0,
+   "segundos_cierre": 4.82,
+   "segundos_malla": 1.0,
+   "malla_mb": 3.02,
+   "vertices": 13605,
+   "huecos_vistos_mm2": [
+    5.0,
+    3.2
+   ],
+   "tuneles_principal": 0,
+   "vóxeles_añadidos": 2361
+  }
+ ]
+}

@@ -116,7 +116,7 @@ class FundidoraBackbone(nn.Module):
     def forward_full(self, x: torch.Tensor):
         """Como ``forward``, pero devuelve además C0: la salida del bloque 1 ANTES de su MaxPool
         (stride 1, ``widths[0]`` canales). Es un mapa del mismo backbone compartido, no una rama
-        nueva: el decodificador U-Net++ lo usa como fila de resolución completa [semana 12]."""
+        nueva: el decodificador U-Net++ lo usa como fila de resolución completa [semana 11]."""
         first = self.stages[0]
         c0 = first.features(x)
         x = first.drop(first.cbam(first.pool(c0)))

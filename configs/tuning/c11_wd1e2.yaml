@@ -1,4 +1,4 @@
 base: ../base.yaml
-# Semana 12 · L2: weight_decay ×100 (1e-4 -> 1e-2). Con AdamW el decaimiento va desacoplado y 1e-4 es casi nulo;
+# Semana 11 · L2: weight_decay ×100 (1e-4 -> 1e-2). Con AdamW el decaimiento va desacoplado y 1e-4 es casi nulo;
 # 1e-2 es el valor típico de AdamW. Única diferencia con c00_base.
 train: {weight_decay: 1.0e-2}

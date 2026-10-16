@@ -475,15 +475,15 @@ Detalle en `04_notebook/03_semana11.ipynb`.
 - **Matriz de confusión** (`scripts/confusion.py`), **Grad-CAM con y sin CBAM** (`scripts/gradcam.py`) y
   **model cards** generados desde los reportes (`scripts/model_cards.py` → `reports/model_cards/`).
 
-## 15. Semana 12: sobreajuste del borde
+## 15. Semana 11 (cierre): sobreajuste del borde
 
-Detalle en `04_notebook/04_semana12_borde.ipynb`; reglas escritas antes de entrenar en
-`reports/tuning/s12/PREREGISTRO.md`.
+Detalle en `04_notebook/04_semana11_borde.ipynb`; reglas escritas antes de entrenar en
+`reports/tuning/s11_borde/PREREGISTRO.md`.
 
 La cabeza de borde sobreajusta (BCE de validación con mínimo en la época 0-1 y subiendo, mientras la de
 train baja). Se probaron los tres remedios que faltaban. Cribado: fold 0, 12 épocas, mejor combinación de
 la misma grilla de posproceso; pasa quien tenga Dice por fragmento ≥ μ + 2σ de cinco referencias
-(`c00_base` con 4 semillas + el control `s12_ref`) e IoU ≥ su media.
+(`c00_base` con 4 semillas + el control `s11_ref`) e IoU ≥ su media.
 
 | Candidato | Cambio | Dice frag | z | IoU frag | Decisión |
 |---|---|---|---|---|---|
@@ -494,9 +494,30 @@ la misma grilla de posproceso; pasa quien tenga Dice por fragmento ≥ μ + 2σ 
 
 - Ninguno pasa; no hubo confirmación en 5 folds, ni modelo nuevo, ni segunda medición de test. El modelo
   final sigue siendo `v2_last` + `configs/tuned.yaml`.
-- El control `s12_ref` (0,682) cae dentro de las referencias de la Fase 1 (z = +0,35): el código nuevo no
+- El control `s11_ref` (0,682) cae dentro de las referencias de la Fase 1 (z = +0,35): el código nuevo no
   cambió el modelo base.
 - Las curvas de los cuatro son iguales: ningún cambio cierra la brecha train-validación del borde.
   U-Net++ marca un borde más preciso (0,43 contra 0,37 a umbral 0,2) con el mismo recall (0,16).
 - Con estos, nueve remedios estándar no mueven el borde. Apunta al límite de la etiqueta a 256 px
   (1,36 mm por píxel), no a la capacidad ni a la regularización de la cabeza.
+
+## 16. Semana 11 (cierre): el hueco del ala ilíaca
+
+Detalle en `04_notebook/03_semana11.ipynb`, secciones 1.1 y 1.2.
+
+- **De dónde sale.** El hueco que se ve en la malla 3D del caso 075 no es una fractura ni sobreajuste.
+  El ala ilíaca mide 0,85-1,7 mm de grosor y la grilla del modelo tiene 1,36 mm por píxel: al pasar la
+  etiqueta a 256 px (vecino más cercano) el puente se pierde, y el modelo aprende ese hueco. En los 100
+  casos, 102 de 300 fragmentos principales ganan túneles al pasar a 256 px.
+- **Malla.** El visualizador 3 suaviza ahora con σ = 0,5 en vez de 0,8, porque 0,8 borraba las láminas
+  de un vóxel y agrandaba el hueco (de 12 a 33 mm² en el 075; con 0,5 queda en 16 mm²). No cambia
+  ninguna métrica.
+- **Cierre en el posproceso (`postprocess.fill_holes_mm`, descartado).** Un cierre morfológico por
+  fragmento, medido con las predicciones fuera de fold (85 casos, dos semillas) contra la etiqueta
+  nativa. Con cualquier radio de 1,5 a 7 mm baja el Dice por fragmento (−0,0002 a −0,0035, 0/5 folds a
+  favor) y quita solo un 30-50 % de los túneles de más de los coxales. En el sacro cierra forámenes
+  reales. En el 075, con 7 mm la máscara queda sin túnel, pero la malla aún muestra rendijas. Queda en
+  el código con 0 por defecto.
+- **Lo que lo arreglaría:** etiquetas a más resolución, o un remuestreo que conserve las láminas
+  delgadas, y reentrenar. Es trabajo futuro, y es el mismo límite de resolución que la §15 señala para
+  la cabeza de borde.

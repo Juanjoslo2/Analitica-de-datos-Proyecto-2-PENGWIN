@@ -144,7 +144,7 @@ class MultiTaskLoss(nn.Module):
             parts["dist_reg"] = (err * hueso).sum() / hueso.sum().clamp(min=1.0)
             parts["seg"] = parts["seg"] + parts["dist_reg"]
 
-        # [semana 12] Supervisión profunda (U-Net++): las salidas intermedias X^{0,1}, X^{0,2} solo
+        # [semana 11] Supervisión profunda (U-Net++): las salidas intermedias X^{0,1}, X^{0,2} solo
         # llegan en model.train(). L_seg pasa a ser el promedio de las tres salidas, como el
         # DeepSupervisionLoss de la sesión 2; sigue siendo UN término. Los componentes que se
         # registran (seg_ce, edge_bce, ...) son los de la salida final, comparables con validación.

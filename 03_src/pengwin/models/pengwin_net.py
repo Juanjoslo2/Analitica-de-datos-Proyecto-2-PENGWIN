@@ -48,7 +48,7 @@ class PengwinNet(nn.Module):
         self.cls_head = ClassificationHead(c4, n_cls)
         self.det_head = GridDetectionHead(neck, n_cls, self.stride)
         self.seg_outputs = tuple(model_cfg.get("seg_outputs", DEFAULT_SEG_OUTPUTS) or DEFAULT_SEG_OUTPUTS)
-        # Semana 12: decodificador de segmentación. "unet" = el de siempre (checkpoints viejos sin la
+        # Semana 11: decodificador de segmentación. "unet" = el de siempre (checkpoints viejos sin la
         # clave cargan igual); "unetpp" = U-Net++ con C0 a resolución completa y supervisión profunda.
         self.seg_decoder = str(model_cfg.get("seg_decoder", "unet"))
         seg_dropout = float(model_cfg.get("seg_spatial_dropout", 0.0))
