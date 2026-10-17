@@ -7,6 +7,9 @@ Pipeline del dashboard: de un volumen CT (.mha / .nii / .nrrd) a los tres visual
             → fragmentos 3D (edt_hmax) → grilla nativa → distancia de separación en mm
             → visualizador 1 (MIP en HU, sin modelo), 2 (corte a corte) y 3 (malla 3D)
 
+Un grupo de cortes sueltos (PNG, JPEG o DICOM, en lote o .zip) entra por ``procesar_cortes``:
+cortes.py los ordena y arma el volumen, y desde ahí sigue el mismo camino que un .mha.
+
 Todo lo que el navegador pide sale de la carpeta del trabajo (``<trabajos>/<id>/``), así
 recorrer el slider no vuelve a correr el modelo.
 """
@@ -14,6 +17,7 @@ recorrer el slider no vuelve a correr el modelo.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -28,8 +32,9 @@ from scipy import ndimage as ndi
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "03_src"))
 
-from pengwin.data.data_loader import load_and_standardize_mha  # noqa: E402
-from pengwin.data.slice_cache import build_case_cache, load_case_cache  # noqa: E402
+from pengwin.data.data_loader import apply_bone_window, load_and_standardize_mha  # noqa: E402
+from pengwin.data.preprocessing import HU_AIR, apply_crop, compute_bone_crop  # noqa: E402
+from pengwin.data.slice_cache import _resize_stack, build_case_cache, context_offset, load_case_cache  # noqa: E402
 from pengwin.detection.grid import decode  # noqa: E402
 from pengwin.inference.volume import TTA_SETS, _tta_forward, predict_case, to_native  # noqa: E402
 from pengwin.evaluation.fragment_metrics import distance_comparison, match_fragments, summarize  # noqa: E402
@@ -156,15 +161,21 @@ def analizar_mascara(modelo: Modelo, ruta_mascara: Path, carpeta: Path, avance: 
 
 def procesar_volumen(modelo: Modelo, ruta: Path, carpeta: Path, avance: Callable[[str, float], None],
                      ruta_gt: Path | None = None, titulo: str | None = None,
-                     nota_referencia: str | None = None) -> Dict:
-    """Corre todo el pipeline y deja en ``carpeta`` lo que piden los visualizadores."""
+                     nota_referencia: str | None = None, reconstruccion: Dict | None = None,
+                     revisar: bool = True) -> Dict:
+    """Corre todo el pipeline y deja en ``carpeta`` lo que piden los visualizadores.
+
+    ``reconstruccion``: el informe de cortes.py cuando el volumen se armó con cortes sueltos (va al
+    resumen tal cual). ``revisar=False`` se salta ``revisar_ct``: un PNG de 8 bits no trae HU reales
+    y cortes.py ya hizo sus propias revisiones."""
     t0 = time.time()
     carpeta.mkdir(parents=True, exist_ok=True)
     avance("Leyendo el volumen y orientándolo a LPS", 0.05)
     hu, spacing, orient = load_and_standardize_mha(ruta)
     if hu.ndim != 3 or min(hu.shape) < 8:
         raise ValueError(f"se esperaba un volumen 3D; llegó {hu.shape}")
-    revisar_ct(hu)
+    if revisar:
+        revisar_ct(hu)
     _mip(hu, spacing, carpeta, avance)
     del hu
 
@@ -214,11 +225,121 @@ def procesar_volumen(modelo: Modelo, ruta: Path, carpeta: Path, avance: Callable
         "fragmentos": fragmentos, "separacion": filas, "separacion_gt": gt_filas, "metricas_gt": metricas_gt,
         "segundos_total": round(time.time() - t0, 1), "segundos_modelo": round(t_mod, 1),
         "ms_por_corte": round(1000 * t_mod / lab.shape[0], 1), "aviso": AVISO,
-        "titulo": titulo, "nota_referencia": nota_referencia,
+        "titulo": titulo, "nota_referencia": nota_referencia, "reconstruccion": reconstruccion,
     }
     (carpeta / "resumen.json").write_text(json.dumps(resumen, default=float), encoding="utf-8")
     avance("Listo", 1.0)
     return resumen
+
+
+# ---------------------------------------------------------------- grupo de cortes sueltos
+
+@torch.no_grad()
+def sentido_anatomico(modelo: Modelo, hu: np.ndarray, spacing_zyx, muestras: int = 48) -> Dict:
+    """Qué extremo del grupo de cortes es la cabeza, mirando dónde pone el modelo el sacro.
+
+    En los 100 casos de PENGWIN (LPS, z hacia la cabeza) el centroide del sacro queda 17-56 mm por
+    encima del de los coxales y 20-46 mm por detrás. Se corre el modelo sin TTA en ``muestras``
+    cortes repartidos (con su contexto 2.5D) y se comparan los centroides de lo que marca como sacro
+    y como coxales. Devuelve las diferencias en mm (sacro − coxales) y la decisión."""
+    d = modelo.cfg["data"]
+    crop = compute_bone_crop(hu, spacing_zyx, margin_mm=float(d.get("crop_margin_mm", 15)))
+    nivel, ancho = _ventana(modelo.cfg)
+    Z = hu.shape[0]
+    delta = context_offset(spacing_zyx[0], float(d.get("context_mm", 2.0)))
+    zs = np.unique(np.linspace(0, Z - 1, min(Z, muestras)).round().astype(int))
+    hechos: Dict[int, np.ndarray] = {}
+
+    def corte(z: int) -> np.ndarray:                     # igual que el caché: ventana, recorte, 256 px, uint8
+        z = int(min(max(z, 0), Z - 1))
+        if z not in hechos:
+            v = apply_bone_window(apply_crop(hu[z], crop, fill=HU_AIR), nivel, ancho)
+            v = _resize_stack(v[None], 256, order=1)[0]
+            hechos[z] = np.round(np.clip(v, 0, 1) * 255) / 255.0
+        return hechos[z]
+
+    sem = []
+    amp = modelo.device.type == "cuda"
+    for i in range(0, len(zs), 16):
+        x = np.stack([np.stack([corte(z - delta), corte(z), corte(z + delta)]) for z in zs[i:i + 16]]).astype(np.float32)
+        with torch.amp.autocast(device_type=modelo.device.type, dtype=torch.float16, enabled=amp):
+            out = modelo.net(torch.from_numpy(x).to(modelo.device))
+        sem.append(out["seg_logits"].argmax(1).cpu().numpy())
+    sem = np.concatenate(sem)
+    sa, cx = sem == 1, (sem == 2) | (sem == 3)
+    n_sa, n_cx = int(sa.sum()), int(cx.sum())
+    px = crop.pixel_mm_at(256)
+    if n_sa < 200 or n_cx < 200:
+        return {"seguro": False, "invertir": False, "motivo": "el modelo casi no encontró sacro o coxales"}
+    yy, xx = np.mgrid[:256, :256]
+
+    def centro(m):
+        w = m.sum((1, 2))
+        return (float((zs * w).sum() / w.sum()), float((yy * m).sum() / m.sum()), float((xx * m).sum() / m.sum()))
+
+    (z_sa, y_sa, x_sa), (z_cx, y_cx, x_cx) = centro(sa), centro(cx)
+    dz = (z_sa - z_cx) * spacing_zyx[0]
+    dy, dx = (y_sa - y_cx) * px, (x_sa - x_cx) * px
+    return {"dz_mm": round(dz, 1), "dy_mm": round(dy, 1), "dx_mm": round(dx, 1),
+            "seguro": abs(dz) >= 5.0, "invertir": dz <= -5.0}
+
+
+def procesar_cortes(modelo: Modelo, ruta: Path, carpeta: Path, avance: Callable[[str, float], None],
+                    opciones: Dict | None = None) -> Dict:
+    """Lote o .zip de cortes → volumen (cortes.py) → sentido cabeza-pies → el pipeline de siempre.
+
+    El volumen armado queda en ``reconstruido.mha`` (comprimido) para descargarlo y abrirlo en otro
+    programa."""
+    import SimpleITK as sitk
+    import cortes
+    op = opciones or {}
+    carpeta.mkdir(parents=True, exist_ok=True)
+    avance("Leyendo los cortes y decidiendo su orden", 0.02)
+    tmp = carpeta / "lote_tmp"
+    try:
+        rec = cortes.reconstruir(ruta, tmp, op.get("mm_px"), op.get("mm_corte"),
+                                 tuple(op.get("ventana") or cortes.VENTANA_MODELO))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    inf = rec.informe
+    sx, sy, sz = rec.spacing_xyz
+    if rec.sentido_conocido:
+        normal_z = rec.direccion[8]                       # componente superior (LPS) de la normal del plano
+        sube = None if abs(normal_z) < 0.5 else normal_z > 0
+        inf["sentido"] = "lo dice el header DICOM (posición y orientación de cada corte)"
+        if sube is None:
+            inf["avisos"].append("La serie DICOM no es axial: con su geometría se lleva a cortes axiales antes del "
+                                 "modelo, que se entrenó con cortes axiales.")
+    else:
+        avance(f"{rec.hu.shape[0]} cortes en orden; el modelo ubica el sacro para saber dónde está la cabeza", 0.06)
+        s = sentido_anatomico(modelo, rec.hu, (sz, sy, sx))
+        inf["anatomia"] = s
+        if not s["seguro"]:
+            inf["sentido"] = "sin confirmar: el primer corte del orden quedó abajo"
+            inf["avisos"].append("No se pudo confirmar qué extremo es la cabeza ("
+                                 + s.get("motivo", f"el sacro y los coxales quedan a {s.get('dz_mm', 0):+.1f} mm en altura")
+                                 + "). Si la reconstrucción sale de cabeza, el resto de las cifras no cambia.")
+        else:
+            if s["invertir"]:
+                rec.invertir()
+            inf["sentido"] = (f"por la anatomía: el sacro queda {abs(s['dz_mm']):.0f} mm por encima de los coxales"
+                              + (" (los archivos venían de la cabeza a los pies; se dieron vuelta)" if s["invertir"] else ""))
+        # en el plano se supone la convención radiológica; si el sacro no queda atrás, lo más probable es
+        # que los cortes vengan girados o volteados (no se corrige: un espejo izquierda-derecha no se ve)
+        if s.get("dy_mm") is not None and s["dy_mm"] < max(10.0, 2 * abs(s["dx_mm"])):
+            inf["avisos"].append("El sacro no aparece en la parte de atrás de los cortes: parecen girados o volteados. "
+                                 "El modelo espera la convención radiológica (anterior arriba e izquierda del "
+                                 "paciente a la derecha de la imagen); revise cómo se exportaron.")
+        sube = True
+    primero, ultimo = cortes.primero_y_ultimo(rec)
+    inf["corte_inferior"], inf["corte_superior"] = ((None, None) if sube is None else
+                                                    (primero, ultimo) if sube else (ultimo, primero))
+    ruta_vol = carpeta / "reconstruido.mha"
+    sitk.WriteImage(rec.imagen_sitk(), str(ruta_vol), True, 3)        # 075: nivel 1 = 111 MB, nivel 3 = 80 MB (+0,8 s)
+    del rec
+    titulo = f"{inf['cortes']} cortes {inf['formato']} armados en volumen"
+    return procesar_volumen(modelo, ruta_vol, carpeta, lambda m, f: avance(m, 0.1 + 0.9 * f), titulo=titulo,
+                            reconstruccion=inf, revisar=inf["formato"] == "DICOM")
 
 
 def _ventana(cfg: Dict) -> List[float]:
@@ -375,13 +496,27 @@ def _texto(d: ImageDraw.ImageDraw, xy, txt: str, color, fuente, borde=None) -> N
 # ---------------------------------------------------------------- imagen de un solo corte
 
 @torch.no_grad()
-def procesar_imagen(modelo: Modelo, img: Image.Image, mm_px: float):
-    """Un corte suelto (PNG/JPG): si es RGB se toma como la entrada 2.5D (z−Δ, z, z+Δ) que ve el
-    modelo; si es gris, el mismo corte en los tres canales. Sin volumen no hay 3D, así que los
-    fragmentos y la distancia son 2D y aproximados (``mm_px`` lo da el usuario)."""
-    arr = np.asarray(img.convert("RGB").resize((256, 256), Image.BILINEAR), np.float32) / 255.0
-    if np.allclose(arr[..., 0], arr[..., 1]) and np.allclose(arr[..., 1], arr[..., 2]):
-        arr = np.repeat(arr[..., 1:2], 3, axis=2)
+def procesar_imagen(modelo: Modelo, canales_hu: np.ndarray, mm_px: float, pie: str = ""):
+    """Un corte suelto. ``canales_hu`` (C, Y, X) en HU: C = 3 si la imagen traía la entrada 2.5D
+    (z−Δ, z, z+Δ) en sus canales de color, C = 1 si es un corte en gris (se repite en los tres).
+    ``mm_px`` es el tamaño del píxel de la imagen SUBIDA.
+
+    La imagen entra entera (completada con aire hasta quedar cuadrada) con la ventana del modelo y a
+    256 px. No se recorta al hueso como el volumen: en 32 cortes de 8 casos de test el recorte
+    ajustado a un solo corte bajó el Dice por región de 0,915 a 0,888 (en un volumen el recorte
+    abarca toda la pelvis; en un corte solo, únicamente el hueso de ese nivel, y el modelo lo ve más
+    grande que al entrenar). Un cuadro fijo de 325 mm dio 0,920, un empate que además exigiría
+    saber el mm/px. Sin volumen no hay 3D: los fragmentos y la distancia son 2D y aproximados."""
+    if canales_hu.shape[0] == 1:
+        canales_hu = np.repeat(canales_hu, 3, axis=0)
+    _, h, w = canales_hu.shape
+    if h != w:                                         # cuadrada sin deformar: se completa con aire
+        lado = max(h, w)
+        canales_hu = np.pad(canales_hu, ((0, 0), ((lado - h) // 2, lado - h - (lado - h) // 2),
+                                         ((lado - w) // 2, lado - w - (lado - w) // 2)), constant_values=HU_AIR)
+    px = mm_px * canales_hu.shape[1] / 256
+    v = _resize_stack(apply_bone_window(canales_hu, *_ventana(modelo.cfg)), 256, order=1)
+    arr = (np.round(np.clip(v, 0, 1) * 255) / 255.0).astype(np.float32).transpose(1, 2, 0)
     x = torch.from_numpy(arr.transpose(2, 0, 1)[None].copy()).to(modelo.device)
     amp = modelo.device.type == "cuda"
     if modelo.tta:
@@ -398,10 +533,10 @@ def procesar_imagen(modelo: Modelo, img: Image.Image, mm_px: float):
     edge = edge.float().cpu().numpy()
     # Un corte = volumen de 1 de espesor: se usa el mismo posproceso con dz grande para que no
     # mezcle nada en z
-    sp = (10.0, mm_px, mm_px)
+    sp = (10.0, px, px)
     lab = separate_instances(sem, edge, sp, **instance_kwargs(pp))
     filas = separation_table(lab, sp)
     fr = _tabla_fragmentos(lab, sp, filas)
     cajas = {k: v.cpu().numpy() for k, v in det.items()}
     return _render(arr[..., 1], lab[0], cajas, fr, {"mascaras": True, "cajas": True, "distancias": True},
-                   f"corte suelto · {mm_px:.2f} mm/px · distancias 2D aproximadas", mm_px=mm_px), fr
+                   pie or f"corte suelto · {px:.2f} mm/px en el modelo · distancias 2D aproximadas", mm_px=px), fr

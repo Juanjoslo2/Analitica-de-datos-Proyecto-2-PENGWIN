@@ -24,19 +24,79 @@ document.querySelectorAll(".pestanas button").forEach(b=>b.onclick=()=>{
   if(b.dataset.v==="v3")malla();
 });
 
-$("#fVol").onchange=async ev=>{
-  const f=ev.target.files[0];if(!f)return;ev.target.value="";
-  if(!EXT.some(e=>f.name.toLowerCase().endsWith(e))){estado(`"${f.name}" no es un volumen admitido: use ${EXT.join(", ")}`,0);return;}
-  const fd=new FormData();fd.append("nombre",f.name);fd.append("tamano",f.size);
+// ---------------------------------------------------------------- entrada: volumen, cortes o carpeta
+$("#fVol").onchange=ev=>{const f=[...ev.target.files];ev.target.value="";entrada(f.map(x=>({file:x,nombre:x.name})));};
+$("#fCortes").onchange=ev=>{const f=[...ev.target.files];ev.target.value="";entrada(f.map(x=>({file:x,nombre:x.name})));};
+$("#fCarpeta").onchange=ev=>{const f=[...ev.target.files];ev.target.value="";
+  entrada(f.map(x=>({file:x,nombre:x.webkitRelativePath||x.name})));};
+if(!("webkitdirectory" in document.createElement("input")))$("#lCarpeta").classList.add("oculto");
+
+// arrastrar y soltar: archivos sueltos o carpetas enteras (se recorren con webkitGetAsEntry)
+const zona=$("#entrada");
+["dragenter","dragover"].forEach(t=>zona.addEventListener(t,e=>{e.preventDefault();zona.classList.add("arrastrando");}));
+["dragleave","drop"].forEach(t=>zona.addEventListener(t,e=>{e.preventDefault();zona.classList.remove("arrastrando");}));
+zona.addEventListener("drop",async e=>{
+  const items=[...(e.dataTransfer.items||[])].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+  if(!items.length){entrada([...e.dataTransfer.files].map(x=>({file:x,nombre:x.name})));return;}
+  estado("Leyendo lo que soltó…",0);
+  const lista=[];for(const it of items)await recorrer(it,"",lista);
+  entrada(lista);
+});
+async function recorrer(ent,ruta,lista){
+  if(ent.isFile){const file=await new Promise((ok,mal)=>ent.file(ok,mal));lista.push({file,nombre:ruta+file.name});return;}
+  const lector=ent.createReader();
+  for(;;){const lote=await new Promise((ok,mal)=>lector.readEntries(ok,mal));if(!lote.length)break;   // de a 100
+    for(const h of lote)await recorrer(h,ruta+ent.name+"/",lista);}
+}
+
+// tipo por los primeros bytes, como lo hace el servidor (cortes.tipo_de)
+async function tipoDe(f){
+  const b=new Uint8Array(await f.slice(0,132).arrayBuffer());
+  if(b[0]===0x89&&b[1]===0x50&&b[2]===0x4e&&b[3]===0x47)return "png";
+  if(b[0]===0xff&&b[1]===0xd8&&b[2]===0xff)return "jpeg";
+  if(b.length>=132&&b[128]===0x44&&b[129]===0x49&&b[130]===0x43&&b[131]===0x4d)return "dicom";
+  return null;
+}
+const esVolumen=n=>EXT.some(e=>n.toLowerCase().endsWith(e))||n.toLowerCase().endsWith(".zip");
+
+async function entrada(lista){
+  if(!lista.length)return;
+  if(lista.length===1&&esVolumen(lista[0].file.name)){subirArchivo(lista[0].file,lista[0].file.name);return;}
+  if(lista.some(a=>esVolumen(a.file.name))){estado("Suba el volumen (o el .zip) solo, no junto con otros archivos.",0);return;}
+  estado(`Revisando ${lista.length} archivo(s)…`,0);
+  const tipos=await Promise.all(lista.map(a=>tipoDe(a.file)));
+  const utiles=lista.filter((_,k)=>tipos[k]),fuera=lista.length-utiles.length;
+  if(!utiles.length){estado(lista.length===1?`"${lista[0].file.name}" no es un volumen ni un corte PNG, JPG o DICOM.`
+    :"Ninguno de los archivos es un corte PNG, JPG o DICOM.",0);return;}
+  if(utiles.length===1){corteSuelto(utiles[0].file);return;}
+  // varios cortes: se juntan en un solo archivo (.lote) y suben por la misma vía que un volumen
+  const lote=empacar(utiles);
+  subirArchivo(lote,"cortes.lote",`${utiles.length} cortes`+(fuera?` (${fuera} archivos que no son cortes quedaron fuera)`:""));
+}
+
+// formato del lote (cortes.leer_lote): "PWLOTE1\n" + u32 largo del índice + índice JSON + los archivos seguidos.
+// El Blob no copia nada: cada trozo de 8 MB se lee de los archivos originales al subirlo.
+function empacar(utiles){
+  const idx=new TextEncoder().encode(JSON.stringify({archivos:utiles.map(a=>({nombre:a.nombre,tam:a.file.size}))}));
+  const cab=new Uint8Array(12);cab.set(new TextEncoder().encode("PWLOTE1\n"));new DataView(cab.buffer).setUint32(8,idx.length,true);
+  return new Blob([cab,idx,...utiles.map(a=>a.file)]);
+}
+
+function opcionesCortes(fd){
+  for(const [k,s] of [["mm_px","#mmpx"],["mm_corte","#mmcorte"],["nivel","#nivel"],["ancho","#ancho"]])fd.append(k,$(s).value.trim());
+}
+
+async function subirArchivo(f,nombre,que){
+  const fd=new FormData();fd.append("nombre",nombre);fd.append("tamano",f.size);opcionesCortes(fd);
   let r=await fetch("api/subida",{method:"POST",body:fd});
   if(!r.ok){estado((await r.json()).detail,0);return;}
   const {id,trozo:P}=await r.json();
-  try{await subir(f,id,P);}catch(e){estado(e.fatal?`Archivo rechazado: ${e.message}`:"La subida falló; revise la conexión y vuelva a intentar.",0);return;}
+  try{await subir(f,id,P,que,nombre);}catch(e){estado(e.fatal?`Archivo rechazado: ${e.message}`:"La subida falló; revise la conexión y vuelva a intentar.",0);return;}
   estado("Verificando el archivo…",0.3);
   r=await fetch(`api/subida/${id}/fin`,{method:"POST"});
   if(!r.ok){estado((await r.json()).detail,0);return;}
   esperar(id);
-};
+}
 
 // Subida: trozos de 8 MB comprimidos con gzip y 4 a la vez, cada uno por su WebSocket (= su propia
 // conexión TCP; por HTTP/2 todo iría en una sola y a 0,3 MB/s). Sin WebSocket, PUT de a uno.
@@ -44,8 +104,8 @@ const PARALELO=4,GZIP=typeof CompressionStream!=="undefined";
 const mb=b=>(b/1048576).toFixed(0);
 const dura=s=>s<90?`${Math.max(1,Math.round(s))} s`:`${Math.round(s/60)} min`;
 
-async function subir(f,id,P){
-  const N=Math.ceil(f.size/P),comprimir=GZIP&&!f.name.toLowerCase().endsWith(".gz");
+async function subir(f,id,P,que,nombre){
+  const N=Math.ceil(f.size/P),comprimir=GZIP&&!/\.(gz|zip)$/i.test(nombre);
   let sig=0,listo=0,fallo=null;const t0=performance.now(),abiertos=[];
   const ws0=await abrirWS(id).catch(()=>null);
   async function canal(k){
@@ -65,7 +125,7 @@ async function subir(f,id,P){
       }
       listo+=t.n;
       const s=(performance.now()-t0)/1000,v=listo/s;
-      estado(`Subiendo ${mb(listo)} / ${mb(f.size)} MB · ${(v/1048576).toFixed(1)} MB/s · faltan ~${dura((f.size-listo)/v)}`,0.3*listo/f.size);
+      estado(`Subiendo ${que?que+" · ":""}${mb(listo)} / ${mb(f.size)} MB · ${(v/1048576).toFixed(1)} MB/s · faltan ~${dura((f.size-listo)/v)}`,0.3*listo/f.size);
     }
   }
   await Promise.all(Array.from({length:ws0?Math.min(PARALELO,N):1},(_,k)=>canal(k).catch(e=>{fallo=fallo||e;})));
@@ -119,14 +179,15 @@ function esperar(id){
   },1500);
 }
 
-$("#fImg").onchange=async ev=>{
-  const f=ev.target.files[0];if(!f)return;ev.target.value="";estado("Procesando el corte…",0.5);
-  const fd=new FormData();fd.append("archivo",f);fd.append("mm_px",$("#mmpx").value);
+async function corteSuelto(f){
+  estado("Procesando el corte…",0.5);
+  const fd=new FormData();fd.append("archivo",f);fd.append("mm_px",$("#mmpx").value.trim());
+  fd.append("nivel",$("#nivel").value.trim());fd.append("ancho",$("#ancho").value.trim());
   const r=await fetch("api/imagen",{method:"POST",body:fd});
   if(!r.ok){estado((await r.json()).detail,0);return;}
-  const j=await r.json();$("#imgOut").src="data:image/png;base64,"+j.png;
+  const j=await r.json();$("#imgOut").src="data:image/png;base64,"+j.png;$("#imgNota").textContent=j.nota||"";
   $("#resImg").classList.remove("oculto");$("#resImg").scrollIntoView({behavior:"smooth"});estado("Listo",1);
-};
+}
 
 async function abrir(id){
   T=id;Rmalla=null;R=await (await fetch(`api/trabajo/${id}/resumen`)).json();
@@ -138,6 +199,7 @@ async function abrir(id){
     ["Fragmentos",`${R.fragmentos.length} (${sec} secundarios)`],
     ["Modelo por corte",`${R.ms_por_corte} ms · ${R.dispositivo}`],["Pipeline completo",`${R.segundos_total} s`]
   ].map(([a,b])=>`<div>${a}<b>${b}</b></div>`).join("");
+  reconstruccion(id);
   $("#mipAx").src=`api/trabajo/${id}/mip/axial`;$("#mipCor").src=`api/trabajo/${id}/mip/coronal`;
   $("#mipSag").src=`api/trabajo/${id}/mip/sagital`;$("#giro").value=0;$("#mipGiro").src=`api/trabajo/${id}/mip/0`;
   for(let k=0;k<24;k++){new Image().src=`api/trabajo/${id}/mip/${k}`;}
@@ -146,6 +208,29 @@ async function abrir(id){
   corte();tabla();
   if(document.querySelector(".pestanas button.activo").dataset.v==="v3")malla();
   $("#resultado").scrollIntoView({behavior:"smooth"});
+}
+
+// cómo se armó el volumen cuando llegó como cortes. Los nombres de archivo los puso el usuario:
+// van siempre con textContent, nunca dentro de innerHTML.
+function reconstruccion(id){
+  const c=R.reconstruccion;$("#rec").classList.toggle("oculto",!c);if(!c)return;
+  const n=v=>String(v).replace(".",","),caja=(a,b)=>{const d=document.createElement("div");d.textContent=a;
+    const x=document.createElement("b");x.textContent=b;d.append(x);return d;};
+  $("#recMeta").replaceChildren(
+    caja("Formato",c.formato),caja("Cortes en el volumen",`${c.cortes} (${c.usados} de ${c.recibidos} archivos)`),
+    caja("mm por píxel",`${n(c.mm_px[1])} · ${c.fuente_mm_px}`),caja("mm entre cortes",`${n(c.mm_corte)} · ${c.fuente_mm_corte}`));
+  const li=(t,b)=>{const e=document.createElement("li");if(b){const x=document.createElement("b");x.textContent=b+" ";e.append(x);}
+    e.append(document.createTextNode(t));return e;};
+  const det=[li(c.orden,"Orden:"),li(c.sentido||"—","Dónde está la cabeza:")];
+  if(c.corte_inferior)det.push(li(`${c.corte_inferior} (pies) … ${c.corte_superior} (cabeza)`,"Extremos:"));
+  if(c.conversion)det.push(li(c.conversion,"Intensidad:"));
+  if(c.interpolados)det.push(li(`${c.interpolados} cortes interpolados donde faltaban`,"Huecos:"));
+  $("#recDetalle").replaceChildren(...det);
+  $("#recAvisos").replaceChildren(...(c.avisos||[]).map(a=>li(a)));
+  const ign=c.ignorados||[];$("#recIgnorados").classList.toggle("oculto",!ign.length);
+  $("#recIgnorados summary").textContent=`${ign.length} archivo(s) o grupos no usados`;
+  $("#recIgnorados ul").replaceChildren(...ign.map(a=>li(a)));
+  $("#recDescarga").href=`api/trabajo/${id}/volumen`;
 }
 
 $("#giro").oninput=e=>$("#mipGiro").src=`api/trabajo/${T}/mip/${e.target.value}`;

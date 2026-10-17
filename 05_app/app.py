@@ -19,7 +19,7 @@ Seguridad (seguridad.py, validacion.py):
       equivocadas seguidas bloquean el perfil (se desbloquea con usuarios.py).
     - Cada trabajo subido pertenece a su usuario; los ejemplos los ven todos los usuarios.
     - Los archivos se validan por contenido antes de llegar al modelo (solo volúmenes de un archivo
-      y cortes PNG/JPEG); el nombre del archivo nunca se usa como ruta.
+      y cortes PNG/JPEG/DICOM, sueltos, en lote o en .zip); el nombre del archivo nunca se usa como ruta.
     - Peticiones que cambian algo (POST/PUT) deben venir del mismo origen (protección CSRF además
       de la cookie SameSite=Strict).
 
@@ -29,6 +29,12 @@ TCP propia, porque nginx no lleva WebSocket sobre HTTP/2; por HTTP/2 todo va en 
 con los ~180 ms de ida y vuelta Cali-Europa-Bogotá un trozo subía a 0,3 MB/s. Si el WebSocket no abre
 (algún proxy lo bloquea), la página manda los mismos trozos por PUT, de a uno. Cada trozo trae su
 número, así que puede llegar en cualquier orden o repetirse tras un corte sin dañar el archivo.
+
+Grupos de cortes (cortes.py): si se eligen varias imágenes PNG/JPEG o DICOM (o una carpeta), la página
+las junta en un solo archivo ``.lote`` (índice JSON + los archivos uno tras otro) y lo sube por la
+misma vía de trozos. Un ``.zip`` con los cortes también sirve, y un ``.zip`` con un solo volumen se
+trata como ese volumen. Del lote se arma el volumen y sigue el pipeline de siempre; el volumen armado
+se puede descargar (/api/trabajo/{id}/volumen).
 
 Un trabajo a la vez en la GPU; los trabajos subidos se borran a las 6 h.
 """
@@ -55,9 +61,10 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Web
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
+import cortes
 import servicio
 from seguridad import LimiteIntentos, Usuarios
-from validacion import ArchivoInvalido, extension, validar_imagen, validar_volumen
+from validacion import LOTES, ArchivoInvalido, extension, validar_volumen
 
 AQUI = Path(__file__).resolve().parent
 REPO = AQUI.parent
@@ -168,6 +175,25 @@ def _carpeta(tid: str, request: Request) -> Path:
     return TRABAJOS / tid
 
 
+def _procesar(tid: str, st: dict, avance) -> None:
+    ruta = Path(st["ruta"])
+    if ruta.suffix == ".zip":
+        vol = cortes.extraer_volumen(ruta, TRABAJOS / tid)        # un .zip con un solo .mha adentro
+        if vol is not None:
+            ruta.unlink(missing_ok=True)
+            ruta = vol
+            st["ruta"] = str(vol)
+    if ruta.suffix in LOTES:
+        servicio.procesar_cortes(modelo, ruta, TRABAJOS / tid, avance, st.get("opciones"))
+        return
+    try:
+        servicio.procesar_volumen(modelo, ruta, TRABAJOS / tid, avance)
+    except servicio.EsMascara:
+        # subieron la máscara de PENGWIN: si su CT está en el servidor, se analiza ese CT
+        if not servicio.analizar_mascara(modelo, ruta, TRABAJOS / tid, avance, indice_ct):
+            raise
+
+
 def _trabajador() -> None:
     while True:
         tid = cola.get()
@@ -179,14 +205,9 @@ def _trabajador() -> None:
 
         try:
             with candado:
-                try:
-                    servicio.procesar_volumen(modelo, Path(st["ruta"]), TRABAJOS / tid, avance)
-                except servicio.EsMascara:
-                    # subieron la máscara de PENGWIN: si su CT está en el servidor, se analiza ese CT
-                    if not servicio.analizar_mascara(modelo, Path(st["ruta"]), TRABAJOS / tid, avance, indice_ct):
-                        raise
+                _procesar(tid, st, avance)
             st.update(estado_="listo")
-        except servicio.NoEsCT as e:                     # mensaje escrito para el usuario (p. ej. subió la máscara)
+        except (servicio.NoEsCT, cortes.LoteInvalido) as e:     # mensaje escrito para el usuario
             msg = str(e)
             caso = re.fullmatch(r"(\d{3})\.mha", st["nombre"])
             if isinstance(e, servicio.EsMascara) and caso and 1 <= int(caso[1]) <= 100:
@@ -245,15 +266,41 @@ def info(request: Request):
             "aviso": servicio.AVISO, "en_cola": cola.qsize(), "usuario": request.state.usuario}
 
 
+def _numero(texto: str, nombre: str, lo: float, hi: float) -> float | None:
+    """Campo opcional del formulario: vacío = automático."""
+    texto = (texto or "").strip().replace(",", ".")
+    if not texto:
+        return None
+    try:
+        v = float(texto)
+    except ValueError:
+        raise HTTPException(400, f"«{nombre}» debe ser un número")
+    if not lo <= v <= hi:
+        raise HTTPException(400, f"«{nombre}» debe estar entre {lo:g} y {hi:g}")
+    return v
+
+
 @app.post("/api/subida")
-def subida_inicio(request: Request, nombre: str = Form(...), tamano: int = Form(...)):
+def subida_inicio(request: Request, nombre: str = Form(...), tamano: int = Form(...), mm_px: str = Form(""),
+                  mm_corte: str = Form(""), nivel: str = Form(""), ancho: str = Form("")):
     try:
         ext = extension(nombre)
     except ArchivoInvalido as e:
         raise HTTPException(400, str(e))
+    # opciones de los cortes PNG/JPEG; un volumen o un DICOM traen su propia geometría
+    nv, an = _numero(nivel, "nivel de la ventana", -1000, 3000), _numero(ancho, "ancho de la ventana", 50, 5000)
+    opciones = {"mm_px": _numero(mm_px, "mm por píxel", 0.1, 5), "mm_corte": _numero(mm_corte, "mm entre cortes", 0.1, 20),
+                "ventana": [nv if nv is not None else cortes.VENTANA_MODELO[0], an if an is not None else cortes.VENTANA_MODELO[1]]}
     if not 0 < tamano <= MAX_BYTES:
         raise HTTPException(413, "el volumen supera 700 MB")
-    activos = [t for t, s in estado.items() if s["dueno"] == request.state.usuario and s["estado_"] in ("subiendo", "en cola", "procesando")]
+    # una subida propia a medias (se cerró la página, se eligió otro archivo) se descarta: si no, el
+    # usuario quedaba bloqueado hasta la limpieza de las 6 h
+    for t, s in list(estado.items()):
+        if s["dueno"] == request.state.usuario and s["estado_"] == "subiendo":
+            s["estado_"] = "cancelado"
+            estado.pop(t, None)
+            shutil.rmtree(TRABAJOS / t, ignore_errors=True)
+    activos = [t for t, s in estado.items() if s["dueno"] == request.state.usuario and s["estado_"] in ("en cola", "procesando")]
     if activos:
         raise HTTPException(429, "ya tiene un volumen en proceso; espere a que termine")
     if cola.qsize() >= 3:
@@ -265,7 +312,7 @@ def subida_inicio(request: Request, nombre: str = Form(...), tamano: int = Form(
         f.truncate(tamano)
     estado[tid] = {"estado_": "subiendo", "ruta": str(ruta), "tamano": tamano, "recibido": 0,
                    "trozos": set(), "n_trozos": -(-tamano // TROZO), "nombre": nombre[:120],
-                   "mensaje": "Subiendo", "progreso": 0.0, "dueno": request.state.usuario}
+                   "mensaje": "Subiendo", "progreso": 0.0, "dueno": request.state.usuario, "opciones": opciones}
     return {"id": tid, "trozo": TROZO}
 
 
@@ -310,6 +357,8 @@ async def subida_trozo(tid: str, request: Request, i: int, n: int, z: int = 0):
         await asyncio.to_thread(_escribir_trozo, st, i, n, bool(z), datos)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    except OSError:                                      # la subida se canceló mientras llegaba el trozo
+        raise HTTPException(404)
     _anotar_trozo(st, i, n)
     return {"i": i, "recibido": st["recibido"]}
 
@@ -357,9 +406,12 @@ def subida_fin(tid: str, request: Request):
         raise HTTPException(404)
     if len(st["trozos"]) != st["n_trozos"]:
         raise HTTPException(400, "faltan trozos")
-    try:
-        st["validacion"] = validar_volumen(st["ruta"], st["nombre"])      # antes de tocar la cola o el modelo
-    except ArchivoInvalido as e:
+    try:                                                 # antes de tocar la cola o el modelo
+        if Path(st["ruta"]).suffix in LOTES:
+            st["validacion"] = cortes.validar_lote(st["ruta"])
+        else:
+            st["validacion"] = validar_volumen(st["ruta"], st["nombre"])
+    except (ArchivoInvalido, cortes.LoteInvalido) as e:
         shutil.rmtree(TRABAJOS / tid, ignore_errors=True)
         estado.pop(tid, None)
         raise HTTPException(400, f"Archivo rechazado: {e}")
@@ -389,6 +441,17 @@ def malla(tid: str, request: Request):
     return FileResponse(_carpeta(tid, request) / "malla.json")
 
 
+@app.get("/api/trabajo/{tid}/volumen")
+def volumen(tid: str, request: Request):
+    """El volumen armado con los cortes (solo trabajos que llegaron como cortes)."""
+    ruta = _carpeta(tid, request) / "reconstruido.mha"
+    if not ruta.exists():
+        raise HTTPException(404, "este trabajo no se armó con cortes")
+    # el .mha ya va comprimido por dentro: «identity» evita que el GZipMiddleware lo comprima otra vez
+    return FileResponse(ruta, media_type="application/octet-stream", filename="volumen_reconstruido.mha",
+                        headers={"Content-Encoding": "identity"})
+
+
 @app.get("/api/trabajo/{tid}/mip/{vista}")
 def mip(tid: str, vista: str, request: Request):
     c = _carpeta(tid, request)
@@ -409,16 +472,29 @@ def corte(tid: str, z: int, request: Request, mascaras: int = 1, cajas: int = 1,
 
 
 @app.post("/api/imagen")
-async def imagen(archivo: UploadFile = File(...), mm_px: float = Form(1.3)):
+async def imagen(archivo: UploadFile = File(...), mm_px: str = Form(""), nivel: str = Form(""), ancho: str = Form("")):
+    """Un corte suelto (PNG, JPEG o DICOM): resultado 2D en el momento, sin pasar por la cola."""
     datos = await archivo.read(20 * 1024 ** 2 + 1)
     if len(datos) > 20 * 1024 ** 2:
         raise HTTPException(413, "la imagen supera 20 MB")
+    mm = _numero(mm_px, "mm por píxel", 0.1, 5)
+    nv, an = _numero(nivel, "nivel de la ventana", -1000, 3000), _numero(ancho, "ancho de la ventana", 50, 5000)
+    ventana = (nv if nv is not None else cortes.VENTANA_MODELO[0], an if an is not None else cortes.VENTANA_MODELO[1])
+    tmp = TRABAJOS / f"corte-{uuid.uuid4().hex[:12]}"
     try:
-        img = validar_imagen(datos)
-    except ArchivoInvalido as e:
+        canales, mm, nota, avisos = await asyncio.to_thread(cortes.corte_suelto, datos, tmp, mm, ventana)
+    except cortes.LoteInvalido as e:
         raise HTTPException(400, f"Archivo rechazado: {e}")
-    with candado:
-        out, fr = servicio.procesar_imagen(modelo, img, float(min(max(mm_px, 0.2), 5.0)))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    def con_gpu():
+        with candado:                                    # si hay un volumen en la GPU, espera su turno
+            return servicio.procesar_imagen(modelo, canales, mm)
+
+    # en un hilo: esperar el candado aquí mismo congelaba todo el servidor (subidas incluidas)
+    # mientras otro volumen ocupaba la GPU
+    out, fr = await asyncio.to_thread(con_gpu)
     buf = io.BytesIO()
     out.save(buf, "PNG")
-    return JSONResponse({"png": base64.b64encode(buf.getvalue()).decode(), "fragmentos": fr})
+    return JSONResponse({"png": base64.b64encode(buf.getvalue()).decode(), "fragmentos": fr,
+                         "nota": " ".join([f"Entrada: {nota}."] + avisos)})

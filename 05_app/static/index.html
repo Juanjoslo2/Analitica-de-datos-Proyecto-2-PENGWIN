@@ -46,6 +46,16 @@ th{color:var(--sub);font-weight:600}
 .meta b{display:block;font-size:16px}
 .leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--sub)}
 .oculto{display:none}
+#entrada.arrastrando{border-color:var(--acento);background:#1a2130}
+details.opciones{margin-top:10px;font-size:13px;color:var(--sub)}
+details.opciones summary{cursor:pointer}
+details.opciones input{width:76px;background:#11141a;color:var(--txt);border:1px solid var(--borde);border-radius:6px;padding:4px 6px;font:inherit}
+.rec{margin-top:12px;border-top:1px solid var(--borde);padding-top:10px}
+.rec h3{font-size:14px;margin:0 0 8px}
+.rec ul{margin:8px 0 0;padding-left:18px;font-size:13px}
+.rec li{margin:3px 0}
+.rec .avisos li{color:var(--aviso)}
+.rec details{font-size:13px;color:var(--sub);margin-top:6px}
 @media (max-width:600px){#malla{height:420px}main{padding:10px}header h1{font-size:16px}}
 </style>
 </head>
@@ -58,20 +68,43 @@ th{color:var(--sub);font-weight:600}
 <div class="aviso">⚠ Uso exclusivamente académico. No es un dispositivo médico, no está validado clínicamente
   y no debe usarse para apoyar decisiones quirúrgicas reales.</div>
 <main>
-  <section class="tarjeta">
+  <section class="tarjeta" id="entrada">
     <h2>Entrada</h2>
     <div class="fila" id="ejemplos"></div>
     <div class="fila" style="margin-top:10px">
-      <label class="boton">Subir volumen CT (.mha, .nii, .nii.gz, .nrrd)<input type="file" id="fVol"></label>
-      <label class="boton">Subir imagen de un corte (PNG/JPG)<input type="file" id="fImg" accept="image/png,image/jpeg"></label>
-      <label class="chk">mm/px del corte <input id="mmpx" type="number" value="1.3" step="0.05" min="0.2" max="5" style="width:70px"></label>
+      <label class="boton">Subir volumen CT (.mha, .nii, .nii.gz, .nrrd o .zip)<input type="file" id="fVol"></label>
+      <label class="boton">Subir cortes (PNG, JPG o DICOM · uno o varios)<input type="file" id="fCortes" multiple></label>
+      <label class="boton" id="lCarpeta">Subir una carpeta de cortes<input type="file" id="fCarpeta" webkitdirectory multiple></label>
     </div>
+    <p class="nota" style="margin:8px 0 0">También puede arrastrar aquí el volumen, los cortes o la carpeta. Con varios
+      cortes se arma el volumen 3D. El orden sale de la posición DICOM, de los datos del PNG, del número del nombre o,
+      si no hay nada de eso, del parecido entre cortes vecinos; qué extremo es la cabeza lo dice la anatomía. Un corte
+      solo se analiza en 2D.</p>
+    <details class="opciones">
+      <summary>Opciones para cortes PNG/JPG (un DICOM trae su propia geometría)</summary>
+      <div class="fila" style="margin-top:8px">
+        <label class="chk">mm por píxel <input id="mmpx" type="text" inputmode="decimal" placeholder="auto"></label>
+        <label class="chk">mm entre cortes <input id="mmcorte" type="text" inputmode="decimal" placeholder="auto"></label>
+        <label class="chk">ventana con que se exportaron: nivel <input id="nivel" type="text" inputmode="decimal" placeholder="400"></label>
+        <label class="chk">ancho <input id="ancho" type="text" inputmode="decimal" placeholder="1800"></label>
+      </div>
+      <p class="nota" style="margin:6px 0 0">Vacío = automático: lo que diga el archivo y, si no dice nada, 0,8 mm/px
+        (1,27 si la imagen mide 300 px o menos) y 1 mm entre cortes. La ventana por defecto es la del modelo, L400/W1800.</p>
+    </details>
     <div class="barra"><div id="barra"></div></div>
     <div id="estado"></div>
   </section>
 
   <section class="tarjeta oculto" id="resultado">
     <div class="meta" id="meta"></div>
+    <div class="rec oculto" id="rec">
+      <h3>Volumen armado con cortes</h3>
+      <div class="meta" id="recMeta"></div>
+      <ul id="recDetalle"></ul>
+      <ul class="avisos" id="recAvisos"></ul>
+      <details id="recIgnorados" class="oculto"><summary></summary><ul></ul></details>
+      <p style="margin:10px 0 0"><a class="boton" id="recDescarga" download>Descargar el volumen armado (.mha)</a></p>
+    </div>
     <div class="pestanas" style="margin-top:12px">
       <button data-v="v1" class="activo">1 · Volumen crudo (MIP)</button>
       <button data-v="v2">2 · Corte a corte</button>
@@ -138,8 +171,10 @@ th{color:var(--sub);font-weight:600}
   <section class="tarjeta oculto" id="resImg">
     <h2>Corte suelto</h2>
     <img id="imgOut" alt="corte suelto con predicción">
+    <p class="nota" id="imgNota" style="margin-top:8px;font-size:12px"></p>
     <p class="nota" style="margin-top:8px;font-size:12px">Sin el volumen no hay vecinos en z ni reconstrucción 3D:
-      los fragmentos y las distancias son 2D y dependen del mm/px indicado. Para la medición oficial suba el volumen.</p>
+      los fragmentos y las distancias son 2D y dependen del mm/px. Para la medición oficial suba el volumen o todos
+      los cortes.</p>
   </section>
 </main>
 <script src="static/app.js"></script>

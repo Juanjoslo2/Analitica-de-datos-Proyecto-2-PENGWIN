@@ -26,6 +26,8 @@ MAX_LADO = 2048
 MAX_VOXELES = 400_000_000
 MAX_PIXELES_IMG = 25_000_000
 EXTENSIONES = (".mha", ".nii", ".nii.gz", ".nrrd")
+# grupos de cortes (cortes.py): .lote lo arma la página con los archivos elegidos; .zip lo trae el usuario
+LOTES = (".zip", ".lote")
 TIPOS_MHA = {"MET_CHAR", "MET_UCHAR", "MET_SHORT", "MET_USHORT", "MET_INT", "MET_UINT", "MET_FLOAT", "MET_DOUBLE"}
 TIPOS_NII = {2, 4, 8, 16, 64, 256, 512, 768}          # uint8, int16, int32, float32, float64, int8, uint16, uint32
 TIPOS_NRRD = {"char", "signed char", "int8", "int8_t", "uchar", "unsigned char", "uint8", "uint8_t", "short", "short int",
@@ -40,10 +42,10 @@ class ArchivoInvalido(ValueError):
 
 def extension(nombre: str) -> str:
     n = (nombre or "").lower()
-    for e in (".nii.gz",) + EXTENSIONES:
+    for e in (".nii.gz",) + EXTENSIONES + LOTES:
         if n.endswith(e):
             return e
-    raise ArchivoInvalido(f"formato no admitido; use {', '.join(EXTENSIONES)}")
+    raise ArchivoInvalido(f"formato no admitido; use {', '.join(EXTENSIONES)} o un .zip con los cortes")
 
 
 def _dims_ok(dims) -> None:
@@ -174,6 +176,8 @@ def validar_volumen(ruta: Path | str, nombre: str) -> dict:
     """Valida un volumen subido. Lanza ArchivoInvalido con un mensaje para el usuario."""
     ruta = Path(ruta)
     ext = extension(nombre)
+    if ext in LOTES:
+        raise ArchivoInvalido("un grupo de cortes no es un volumen: se valida con cortes.validar_lote")
     dims = {".mha": _mha, ".nrrd": _nrrd}.get(ext, lambda r: _nii(r, ext == ".nii.gz"))(ruta)
     _dims_ok(dims)
     # Segunda opinión: SimpleITK lee SOLO la cabecera (sin vóxeles) y debe coincidir
