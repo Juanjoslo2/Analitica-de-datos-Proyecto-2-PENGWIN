@@ -1,0 +1,4 @@
+# Réplica del base cambiando SOLO la semilla (7). Con 42 y 1337 ya hay 2 puntos; con 3-4 se puede
+# estimar la desviación del ruido de entrenamiento en vez de un |Δ| suelto.
+base: ../base.yaml
+seed: 7

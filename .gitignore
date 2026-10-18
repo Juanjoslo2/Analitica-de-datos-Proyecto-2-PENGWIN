@@ -38,7 +38,7 @@ reports/eda/cache/
 
 # Ajuste de la semana 10: los crudos (uno por experimento y fold) se quedan fuera de git.
 # Se versiona lo consolidado (scripts/consolidar_ajuste.py -> reports/tuning/ajuste_*),
-# los resúmenes .md y EXPERIMENTOS.csv. Los cambios de cada config quedan en ajuste_corridas.
+# los resúmenes .md, EXPERIMENTOS.csv y las configs de cada corrida (configs/tuning/).
 reports/tuning/pp*.csv
 reports/tuning/pp*.json
 reports/tuning/borde_*.json
@@ -46,7 +46,6 @@ reports/tuning/lambdas/
 reports/tuning/fase2/F2B*/
 reports/train/cv_*
 reports/overfit/overfit_f2b*
-configs/tuning/*.yaml
 reports/tuning/ESTADO.md
 reports/tuning/PROGRESO.md
 

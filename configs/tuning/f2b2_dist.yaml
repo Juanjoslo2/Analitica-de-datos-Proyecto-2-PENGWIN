@@ -1,0 +1,43 @@
+# F2B2: regresión del mapa de distancia a la superficie de fractura (en vez de un borde binario).
+# Hereda base.yaml y cambia SOLO lo necesario. Ver reports/tuning/fase2/REGISTRO.md § F2B2.
+#
+# Motivo (cifras de la Fase 1): el posproceso separa umbralizando una geometría. Con el
+# borde/núcleo del GT y 1,5 mm de erosión el Dice por fragmento es 0,9952; sin erosión, 0,8464.
+# Con el borde PREDICHO hace falta 5 mm y a esa profundidad mueren los fragmentos pequeños,
+# porque la cabeza de borde solo cubre el 19 % de la superficie de fractura (recall 0,193 a
+# umbral 0,2): el borde dilatado es 1 vóxel de cada 83 del hueso. La distancia es un objetivo
+# DENSO (todo vóxel de hueso tiene valor), así que elimina ese desbalance en vez de compensarlo
+# con pos_weight, y en inferencia el núcleo es la operación que el oráculo valida:
+# núcleo = distancia_predicha > umbral.
+#
+# Permitido por el enunciado §3.2 (dos etapas, región y después fragmentos, "de acuerdo con la
+# lógica descrita en la literatura del challenge" = regresión de distancia al borde de MIC-DKFZ,
+# PENGWIN 2024) y por Fase 2 §3.B, que la lista explícitamente. Siguen siendo 3 cabezas sobre un
+# backbone, 2D corte a corte, CBAM antes de la bifurcación, grid y NMS propios y 3 términos de
+# pérdida (la distancia entra DENTRO de seg; no es un cuarto término ni la distancia de
+# separación del §3.3, que se sigue midiendo después sobre las máscaras).
+base: ../base.yaml
+
+model:
+  # Sale la cabeza de borde binaria y entra un canal de REGRESIÓN a la misma resolución.
+  # distancia = sigmoid(dist_logits) · loss.dist_max_mm, así que la salida está acotada sin
+  # recortes y su zona de máxima pendiente cae en el umbral del posproceso (4 mm de 8).
+  # P(borde) se sigue publicando como 1 − distancia/dist_max (edge_logits = −dist_logits): el
+  # pipeline de borde (inference/volume.py, posproceso "edge"/"edt") funciona igual sobre este
+  # checkpoint, aunque ese "borde" no se entrene como tal.
+  seg_outputs: [semantic4, dist]
+
+loss:
+  dist_max_mm: 8.0        # recorte del objetivo: más lejos de la fractura no aporta a la separación
+  dist_huber_beta: 0.1    # Huber en unidades normalizadas (0,8 mm); 0 = L1 pura. Ver losses.py
+  # edge_pos_weight deja de usarse (no hay término de borde binario); se conserva heredado.
+  # Los λ HAY que recalibrarlos: la composición del término seg cambió [DD §4].
+
+postprocess:
+  instance_method: dist   # semillas = componentes 3D de distancia_predicha > seed_depth_mm
+  seed_depth_mm: 4.0      # equivalente del oráculo: 2 vóxeles de dilatación (≈ 2,5 mm) + 1,5 mm
+                          # de erosión, que dieron Dice por fragmento 0,9952 con el GT. Se refina
+                          # después con scripts/tune_postprocess.py sobre las predicciones OOF.
+  dist_max_mm: 8.0        # mismo recorte que en la pérdida (red de seguridad del mapa predicho)
+  edge_threshold: 0.2     # solo para el respaldo sin canal de distancia (ahí "dist" == "edt")
+  seed_min_cm3: 0.02

@@ -1,0 +1,5 @@
+# Réplica de F2A (sin transfer learning) con OTRA semilla, para confirmar su Δ antes de adoptarlo.
+# Lo exige la Fase 2 §4.3: la ganadora se confirma con una réplica de semilla nueva.
+base: ../base.yaml
+model: {pretrained: false}
+seed: 1337

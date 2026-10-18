@@ -1,0 +1,29 @@
+# F2B1: representación núcleo/borde predicha directamente (en vez de borde binario).
+# Hereda base.yaml y cambia SOLO lo necesario. Ver reports/tuning/fase2/REGISTRO.md § F2B1.
+#
+# Motivo (cifra de la Fase 1): el núcleo se derivaba del borde predicho, cuyo recall es 0,193;
+# con el borde real el Dice por fragmento sube de 0,743 a 0,902. Aquí el núcleo es clase propia.
+# Permitido por el enunciado §3.2 (dos etapas: región y después fragmentos, "de acuerdo con la
+# lógica descrita en la literatura del challenge" = núcleo/borde de MIC-DKFZ, PENGWIN 2024).
+# Siguen siendo 3 cabezas, 2D corte a corte, CBAM antes de la bifurcación y 3 términos de pérdida.
+base: ../base.yaml
+
+model:
+  # Sale la cabeza de borde binaria y entra la de 3 clases (fondo/núcleo/borde) a resolución
+  # completa. P(borde) se sigue publicando: se deriva del mismo softmax, así que el posproceso
+  # "edge"/"edt" y la inferencia por volumen funcionan igual sobre este checkpoint.
+  seg_outputs: [semantic4, core3]
+
+loss:
+  # 1/sqrt(frecuencia) normalizado a fondo = 1, medido en los cortes con hueso de 12 casos del
+  # caché: fracciones 0,96642 / 0,03326 / 0,00032 (hueso:borde = 1:104).
+  core3_ce_weights: [1.0, 5.4, 54.8]
+  # edge_pos_weight deja de usarse (no hay término de borde binario); se conserva heredado.
+  # Los λ HAY que recalibrarlos: la composición del término seg cambió [DD §4].
+
+postprocess:
+  instance_method: core3        # semillas = componentes 3D del núcleo predicho
+  core_threshold: 0.5           # P(núcleo) > 0,5 = argmax entre núcleo y borde
+  core_seed_depth_mm: 0.0       # sin erosión por distancia: la hipótesis es que no hace falta
+  edge_threshold: 0.5           # solo para el respaldo sin canal de núcleo (núcleo derivado)
+  seed_min_cm3: 0.02
