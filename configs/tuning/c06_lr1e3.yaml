@@ -1,0 +1,2 @@
+base: ../base.yaml
+train: {lr: 1.0e-3}

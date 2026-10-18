@@ -1,0 +1,4 @@
+# Aumentación espacial y de intensidad más fuerte (práctica nnU-Net): la cabeza de borde
+# sobreajusta (Dice de borde 0,17 train vs 0,42 val), así que se ataca con regularización por datos.
+base: ../base.yaml
+augment: {scale: [0.85, 1.2], rotate_deg: 20, translate: 0.08, gamma: [0.7, 1.4], contrast: [0.85, 1.15], brightness: 0.08}

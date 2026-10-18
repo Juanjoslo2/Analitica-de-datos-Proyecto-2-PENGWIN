@@ -1,0 +1,2 @@
+base: ../base.yaml
+data: {secondary_oversample: 3}

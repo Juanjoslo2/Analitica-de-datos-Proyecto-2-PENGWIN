@@ -1,0 +1,14 @@
+id,linea,hipotesis,epocas,folds,semillas,dice_frag_media,dice_frag_desv,iou_frag,dice_sec,rec_sec,mAP50,mAP5095,iou_caja,F1,AUC,delta_vs_ref,delta_sigma,decision
+P1-base,ref,"referencia: base.yaml con TL, 20 épocas",20,5,42,0.7453,0.0451,0.6828,0.5562,59.5,0.9785,0.8438,0.9111,0.9905,0.9987,+0.0000,+0.00,referencia
+P4-c05,D (Fase1),sobremuestreo x3 de cortes con secundarios,20,5,42,0.7540,0.0444,0.6939,0.5711,62.4,0.9812,0.8718,0.9217,0.9926,0.9990,+0.0093,+1.61,"NO se adopta: 1.60 sigma, 3/5 folds"
+P4-ctrl,control,"misma config, semilla 1337: suelo de ruido",20,5,1337,0.7446,0.0426,0.6687,0.5807,58.9,0.9772,0.8362,0.9079,0.9896,0.9984,-0.0000,-0.01,control: sigma por fold 0.0130
+F2A,A,sin transfer learning (pretrained: false),20,5,42,0.7594,0.0468,0.6969,0.5822,62.8,0.9767,0.8312,0.9059,0.9881,0.9975,+0.0141,+2.43,no confirma con la replica (ver F2A-rep): NO se adopta
+F2B1,B,"nucleo/borde 3 clases, su metodo core3",20,5,42,0.6729,0.0094,0.6253,0.3983,41.3,0.9791,0.8587,0.9168,0.9917,0.9989,,,RECHAZADO: -0.072 vs base
+F2B1-ctrl,B,mismo checkpoint F2B1 con el metodo viejo edt,20,5,42,0.7461,0.0362,0.6737,0.5775,58.4,0.9791,0.8587,0.9168,0.9917,0.9989,+0.0005,+0.09,"control: el modelo es igual al base (+0.0005), falla la representacion"
+F2A-rep,A,replica de sin-TL con semilla 1337,20,5,1337,0.7522,0.0418,0.6903,0.5670,60.9,0.9771,0.8254,0.9040,0.9900,0.9984,+0.0069,t=0.54,"no confirma: agrupado t=1.19, 6/10 folds -> LINEA A CERRADA"
+F2B2,B,"regresion del mapa de distancia, su metodo dist",20,5,42,0.5039,0.0176,0.4680,0.0573,5.7,0.9823,0.8925,0.9301,0.9934,0.9992,,,"RECHAZADO: 0.5039, rec 5.7%, plano en todos los umbrales"
+F2B2-ctrl,B,mismo checkpoint F2B2 con el metodo viejo edt,20,5,42,0.7298,0.0436,0.6686,0.5305,53.7,0.9823,0.8925,0.9301,0.9934,0.9992,-0.0155,t=-1.07,control: modelo algo peor que base (-0.0155)
+ABL-noCBAM,ablacion,"sin CBAM (cbam: false), ablacion obligatoria en CV",20,5,42,0.7365,,0.6744,0.5390,56.3,0.9788,0.8377,0.9094,0.9891,0.9986,-0.0088,t=-0.92,CBAM sin efecto medible en fragmentos (1/5 folds a favor de quitarlo); se mantiene por enunciado
+F2C1,C (posproceso),"semillas por h-maxima (hmax, h 3 mm), mismo OOF del base",20,5,42,0.7600,,0.6839,0.6338,66.6,0.9785,0.8438,0.9111,0.9905,0.9987,+0.0147,t=1.01,"RECHAZADO: parte el principal (-0.0434, 0/5), guardarrail -0.01"
+F2C2,C (posproceso),"hibrido edt + h-maxima donde edt no deja semilla (dep 5, h 1.0)",20,5,42,0.7723,0.0281,0.6985,0.6213,63.1,0.9785,0.8438,0.9111,0.9905,0.9987,+0.0270,t=2.27,"pasa la regla (5/5, IoU +0.0157, principal -0.0093); pendiente de replica"
+F2C2-rep,C (posproceso),"replica pre-registrada de F2C2 (dep 5, h 1.0) sobre el OOF de c00b_seed1337",20,5,1337,0.7635,0.0293,0.6908,0.6066,61.9,0.9772,0.8362,0.9079,0.9896,0.9984,+0.0199,t=2.35,"NO CONFIRMA: principal -0.0112 rompe el guardarrail -0.01 (4/5, IoU +0.0097). EXPLORATORIO, no se adopta"

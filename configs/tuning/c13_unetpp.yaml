@@ -1,0 +1,4 @@
+base: ../base.yaml
+# Semana 11 · decodificador U-Net++ (sesión 2 de segmentación): C0 a resolución completa (bloque 1 antes del
+# MaxPool), skips anidadas y supervisión profunda. Única diferencia con c00_base.
+model: {seg_decoder: unetpp, seg_deep_supervision: true}

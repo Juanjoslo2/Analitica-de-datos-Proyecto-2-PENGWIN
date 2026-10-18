@@ -1,0 +1,4 @@
+base: ../base.yaml
+# Semana 11 · cabeza de segmentación más angosta (64 -> 32 canales a stride 4; 16 a stride 2 y 1):
+# "reducir el tamaño del modelo" donde está el sobreajuste. Única diferencia con c00_base.
+model: {seg_width: 32}

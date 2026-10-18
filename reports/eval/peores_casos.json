@@ -1,0 +1,147 @@
+{
+ "069": {
+  "dice_fragmento": 0.5355865622418966,
+  "iou_fragmento": 0.490326453794916,
+  "n_gt": 7,
+  "n_pred": 19,
+  "dice_principales": 0.918,
+  "secundarios_perdidos": [
+   {
+    "fragmento": "SA-2",
+    "gt_label": 2,
+    "volumen_cm3": 8.43,
+    "iou": 0.0,
+    "en_contacto": true,
+    "dist_gt_mm": 0.8,
+    "que_paso": "absorbido",
+    "fraccion": 0.97
+   },
+   {
+    "fragmento": "LI-2",
+    "gt_label": 12,
+    "volumen_cm3": 11.11,
+    "iou": 0.0,
+    "en_contacto": true,
+    "dist_gt_mm": 0.8,
+    "que_paso": "absorbido",
+    "fraccion": 0.95
+   },
+   {
+    "fragmento": "LI-3",
+    "gt_label": 13,
+    "volumen_cm3": 15.99,
+    "iou": 0.044,
+    "en_contacto": true,
+    "dist_gt_mm": 0.8,
+    "que_paso": "absorbido",
+    "fraccion": 0.93
+   }
+  ]
+ },
+ "011": {
+  "dice_fragmento": 0.5989460312998175,
+  "iou_fragmento": 0.5290626968447504,
+  "n_gt": 6,
+  "n_pred": 28,
+  "dice_principales": 0.929,
+  "secundarios_perdidos": [
+   {
+    "fragmento": "LI-2",
+    "gt_label": 12,
+    "volumen_cm3": 94.98,
+    "iou": 0.484,
+    "en_contacto": true,
+    "dist_gt_mm": 0.8,
+    "que_paso": "partido",
+    "fraccion": 0.49
+   },
+   {
+    "fragmento": "LI-3",
+    "gt_label": 13,
+    "volumen_cm3": 3.77,
+    "iou": 0.013,
+    "en_contacto": true,
+    "dist_gt_mm": 0.8,
+    "que_paso": "sin hueso",
+    "fraccion": 0.84
+   },
+   {
+    "fragmento": "RI-2",
+    "gt_label": 22,
+    "volumen_cm3": 38.16,
+    "iou": 0.068,
+    "en_contacto": true,
+    "dist_gt_mm": 0.8,
+    "que_paso": "absorbido",
+    "fraccion": 0.82
+   }
+  ]
+ },
+ "056": {
+  "dice_fragmento": 0.6136383460626246,
+  "iou_fragmento": 0.5633906296504237,
+  "n_gt": 6,
+  "n_pred": 17,
+  "dice_principales": 0.914,
+  "secundarios_perdidos": [
+   {
+    "fragmento": "RI-2",
+    "gt_label": 22,
+    "volumen_cm3": 12.48,
+    "iou": 0.017,
+    "en_contacto": true,
+    "dist_gt_mm": 0.78,
+    "que_paso": "absorbido",
+    "fraccion": 0.92
+   },
+   {
+    "fragmento": "RI-4",
+    "gt_label": 24,
+    "volumen_cm3": 5.18,
+    "iou": 0.0,
+    "en_contacto": true,
+    "dist_gt_mm": 0.78,
+    "que_paso": "absorbido",
+    "fraccion": 0.84
+   }
+  ]
+ },
+ "010": {
+  "dice_fragmento": 0.683046385884499,
+  "iou_fragmento": 0.6032031177905661,
+  "n_gt": 5,
+  "n_pred": 17,
+  "dice_principales": 0.883,
+  "secundarios_perdidos": [
+   {
+    "fragmento": "LI-3",
+    "gt_label": 13,
+    "volumen_cm3": 71.34,
+    "iou": 0.0,
+    "en_contacto": true,
+    "dist_gt_mm": 0.8,
+    "que_paso": "absorbido",
+    "fraccion": 0.98
+   }
+  ]
+ },
+ "080": {
+  "dice_fragmento": 0.7226437738413328,
+  "iou_fragmento": 0.6619934446227245,
+  "n_gt": 4,
+  "n_pred": 16,
+  "dice_principales": 0.921,
+  "secundarios_perdidos": [
+   {
+    "fragmento": "SA-2",
+    "gt_label": 2,
+    "volumen_cm3": 40.29,
+    "iou": 0.067,
+    "en_contacto": true,
+    "dist_gt_mm": 0.78,
+    "que_paso": "absorbido",
+    "fraccion": 0.9
+   }
+  ]
+ }
+}

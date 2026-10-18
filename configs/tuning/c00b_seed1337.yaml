@@ -1,0 +1,4 @@
+# Réplica del base cambiando SOLO la semilla: mide el ruido de entrenamiento (inicialización de las
+# cabezas, muestreo de cortes vacíos y aumentación) para saber qué diferencias del cribado son reales.
+base: ../base.yaml
+seed: 1337

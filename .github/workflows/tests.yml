@@ -1,7 +1,8 @@
 # Corre los tests en cada Pull Request hacia main y en cada push a main.
 # No necesita el dataset: los tests con datos reales se omiten solos (marca `data`)
-# y el resto usa phantoms sintéticos. Instala solo lo necesario (sin torch) para
-# que tarde ~1 minuto. Activen este check como obligatorio en la protección de main.
+# y el resto usa phantoms sintéticos. Desde la semana 9 instala torch en su build CPU
+# (~200 MB, sin CUDA) para probar backbone, grid, NMS, pérdidas y métricas; tarda ~2 min.
+# Activen este check como obligatorio en la protección de main.
 name: tests
 
 on:
@@ -22,7 +23,8 @@ jobs:
       - name: Dependencias mínimas (versiones de requirements.txt)
         run: |
           python -m pip install --upgrade pip
-          pip install numpy==2.3.5 scipy==1.16.3 SimpleITK==2.5.6 pandas==2.3.3 PyYAML==6.0.3 pytest==8.4.2
+          pip install numpy==2.3.5 scipy==1.16.3 SimpleITK==2.5.6 pandas==2.3.3 PyYAML==6.0.3 pytest==8.4.2 scikit-learn==1.7.2 scikit-image==0.25.2
+          pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -e . --no-deps
       - name: pytest
         run: python -m pytest -v

@@ -1,0 +1,2 @@
+base: ../base.yaml
+model: {spatial_dropout: 0.2, seg_spatial_dropout: 0.2}

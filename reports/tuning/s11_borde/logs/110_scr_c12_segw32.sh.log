@@ -1,0 +1,44 @@
+  "det": 0.7929,
+  "seg": 1.6116
+ }
+}
+  import pynvml  # type: ignore[import]
+train: 18536 cortes | val: 4796 cortes | cuda
+λ = {'cls': 0.5955, 'det': 0.7929, 'seg': 1.6116}
+[backbone] pesos de checkpoints/fundidora_taller3.pth: cargados ['stage1', 'stage2', 'stage3', 'stage4'] | omitidos []
+parámetros: {'backbone': 1967974, 'neck': 197121, 'cls_head': 771, 'det_head': 608143, 'seg_head': 67029, 'total': 2841038} | congelados: ninguno
+época   0 (814 s)  loss 2.997 | val loss 2.397  mAP50 0.960  mAP 0.693  IoU 0.844  Dice 0.948  F1 0.965  AUC 0.990
+época   1 (649 s)  loss 1.858 | val loss 2.181  mAP50 0.965  mAP 0.733  IoU 0.859  Dice 0.939  F1 0.971  AUC 0.994
+época   2 (778 s)  loss 1.509 | val loss 1.843  mAP50 0.961  mAP 0.743  IoU 0.866  Dice 0.946  F1 0.974  AUC 0.994
+época   3 (697 s)  loss 1.316 | val loss 1.565  mAP50 0.968  mAP 0.766  IoU 0.876  Dice 0.951  F1 0.977  AUC 0.995
+época   4 (691 s)  loss 1.170 | val loss 1.478  mAP50 0.972  mAP 0.769  IoU 0.879  Dice 0.953  F1 0.977  AUC 0.995
+época   5 (790 s)  loss 1.052 | val loss 1.383  mAP50 0.973  mAP 0.780  IoU 0.887  Dice 0.953  F1 0.978  AUC 0.995
+época   6 (659 s)  loss 0.960 | val loss 1.374  mAP50 0.975  mAP 0.796  IoU 0.892  Dice 0.955  F1 0.980  AUC 0.996
+época   7 (765 s)  loss 0.879 | val loss 1.310  mAP50 0.973  mAP 0.805  IoU 0.895  Dice 0.955  F1 0.980  AUC 0.996
+época   8 (724 s)  loss 0.822 | val loss 1.299  mAP50 0.974  mAP 0.812  IoU 0.897  Dice 0.957  F1 0.981  AUC 0.996
+época   9 (665 s)  loss 0.775 | val loss 1.245  mAP50 0.976  mAP 0.812  IoU 0.898  Dice 0.959  F1 0.980  AUC 0.996
+época  10 (809 s)  loss 0.744 | val loss 1.274  mAP50 0.975  mAP 0.823  IoU 0.902  Dice 0.958  F1 0.981  AUC 0.996
+época  11 (677 s)  loss 0.726 | val loss 1.221  mAP50 0.976  mAP 0.826  IoU 0.903  Dice 0.959  F1 0.981  AUC 0.996
+Mejor época 11: score 0.922 -> /w/checkpoints/s12_c12_segw32_e12_f0/best.pth
+  import pynvml  # type: ignore[import]
+fold 0: 17 casos  mAP 0.826  Dice 0.959  F1 0.981
+    "0.3": {
+     "precision": 0.3784,
+     "recall": 0.1482
+    },
+    "0.5": {
+     "precision": 0.388,
+     "recall": 0.1382
+    }
+   }
+  }
+ }
+}
+         0.02          5.0            3.0             0.1                0.6806                  NaN               0.6259                          47.2727                     0.0
+         0.02          5.0            4.0             0.3                0.6806                  NaN               0.6186                          45.4545                     0.0
+         0.02          5.0            4.0             0.1                0.6769                  NaN               0.6163                          45.4545                     0.0
+         0.02          5.0            6.0             0.1                0.6743                  NaN               0.5931                          47.2727                     0.0
+         0.02          5.0            4.0             0.5                0.6725                  NaN               0.6097                          43.6364                     0.0
+         0.02          5.0            6.0             0.3                0.6684                  NaN               0.5888                          47.2727                     0.0
+         0.02          5.0            6.0             0.2                0.6682                  NaN               0.5886                          47.2727                     0.0
+         0.02          5.0            6.0             0.5                0.6655                  NaN               0.5862                          47.2727                     0.0

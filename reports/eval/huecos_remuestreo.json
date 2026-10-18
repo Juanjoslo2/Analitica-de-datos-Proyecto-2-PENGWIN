@@ -1,0 +1,2173 @@
+{
+ "que_mide": "túneles del fragmento principal: etiqueta nativa contra la misma etiqueta en el caché de 256 px",
+ "resumen": {
+  "SA": {
+   "principales": 100,
+   "con_tuneles_de_mas_en_256": 34,
+   "tuneles_nativo": 2027,
+   "tuneles_256": 2053,
+   "tuneles_ganados": 77,
+   "tuneles_perdidos": 51
+  },
+  "LI": {
+   "principales": 100,
+   "con_tuneles_de_mas_en_256": 36,
+   "tuneles_nativo": 162,
+   "tuneles_256": 259,
+   "tuneles_ganados": 111,
+   "tuneles_perdidos": 14
+  },
+  "RI": {
+   "principales": 100,
+   "con_tuneles_de_mas_en_256": 32,
+   "tuneles_nativo": 158,
+   "tuneles_256": 231,
+   "tuneles_ganados": 92,
+   "tuneles_perdidos": 19
+  },
+  "todos": {
+   "principales": 300,
+   "con_tuneles_de_mas_en_256": 102,
+   "tuneles_nativo": 2347,
+   "tuneles_256": 2543,
+   "tuneles_ganados": 280,
+   "tuneles_perdidos": 84
+  }
+ },
+ "caso_ejemplo": {
+  "caso": "075",
+  "particion": "test",
+  "huecos_vista_anterior_mm2": {
+   "Referencia nativa (0,85 mm)": [],
+   "Referencia en la grilla del modelo (1,36 mm)": [
+    9.5
+   ],
+   "Predicción (máscara)": [
+    12.3
+   ],
+   "Predicción como la dibujaba el dashboard": [
+    32.7
+   ],
+   "Predicción con el dibujo corregido": [
+    16.4
+   ]
+  },
+  "tuneles": {
+   "referencia_nativa": 0,
+   "referencia_256": 1,
+   "prediccion": 1
+  },
+  "grosor_ala_en_el_hueco_mm": {
+   "mediana": 1.71,
+   "minimo": 0.85
+  },
+  "hu_del_ala_en_el_hueco": {
+   "p10": 232,
+   "mediana": 306,
+   "max": 501
+  },
+  "pixel_mm_modelo": 1.364
+ },
+ "por_fragmento": [
+  {
+   "caso": "001",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "001",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 9
+  },
+  {
+   "caso": "001",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "002",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "002",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "002",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "003",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "003",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "003",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "004",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 15,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "004",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "004",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "005",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "005",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "005",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "006",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 10,
+   "tuneles_256": 12
+  },
+  {
+   "caso": "006",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "006",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "007",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "007",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "007",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "008",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "008",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "008",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "009",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 24,
+   "tuneles_256": 24
+  },
+  {
+   "caso": "009",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "009",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 7,
+   "tuneles_256": 5
+  },
+  {
+   "caso": "010",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "010",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "010",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 5
+  },
+  {
+   "caso": "011",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "011",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "011",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "012",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "012",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "012",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "013",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 37,
+   "tuneles_256": 32
+  },
+  {
+   "caso": "013",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 6,
+   "tuneles_256": 10
+  },
+  {
+   "caso": "013",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "014",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 14,
+   "tuneles_256": 14
+  },
+  {
+   "caso": "014",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "014",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "015",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "015",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 12,
+   "tuneles_256": 27
+  },
+  {
+   "caso": "015",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 9,
+   "tuneles_256": 10
+  },
+  {
+   "caso": "016",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "016",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "016",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "017",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "017",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "017",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "018",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "018",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "018",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 7,
+   "tuneles_256": 5
+  },
+  {
+   "caso": "019",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 16
+  },
+  {
+   "caso": "019",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "019",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "020",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "020",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "020",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "021",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "021",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "021",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "022",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "022",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "022",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "023",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "023",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "023",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "024",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "024",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "024",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "025",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "025",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "025",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "026",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "026",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "026",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "027",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "027",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 8,
+   "tuneles_256": 15
+  },
+  {
+   "caso": "027",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "028",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "028",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "028",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "029",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 25
+  },
+  {
+   "caso": "029",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 6
+  },
+  {
+   "caso": "029",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "030",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "030",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "030",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "031",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "031",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 6,
+   "tuneles_256": 9
+  },
+  {
+   "caso": "031",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 7
+  },
+  {
+   "caso": "032",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 14,
+   "tuneles_256": 14
+  },
+  {
+   "caso": "032",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "032",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "033",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 31,
+   "tuneles_256": 30
+  },
+  {
+   "caso": "033",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "033",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 6
+  },
+  {
+   "caso": "034",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 44,
+   "tuneles_256": 46
+  },
+  {
+   "caso": "034",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "034",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 8
+  },
+  {
+   "caso": "035",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "035",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "035",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "036",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "036",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "036",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "037",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "037",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "037",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "038",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "038",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "038",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "039",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "039",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "039",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "040",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "040",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "040",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "041",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "041",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "041",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "042",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "042",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "042",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "043",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "043",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "043",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "044",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "044",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 8
+  },
+  {
+   "caso": "044",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 10
+  },
+  {
+   "caso": "045",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "045",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "045",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "046",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 27,
+   "tuneles_256": 28
+  },
+  {
+   "caso": "046",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 8
+  },
+  {
+   "caso": "046",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "047",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 30,
+   "tuneles_256": 28
+  },
+  {
+   "caso": "047",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "047",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "048",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 16
+  },
+  {
+   "caso": "048",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 8
+  },
+  {
+   "caso": "048",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 10,
+   "tuneles_256": 14
+  },
+  {
+   "caso": "049",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "049",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 10
+  },
+  {
+   "caso": "049",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 6
+  },
+  {
+   "caso": "050",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 27,
+   "tuneles_256": 25
+  },
+  {
+   "caso": "050",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "050",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "051",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "051",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "051",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "052",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 24,
+   "tuneles_256": 25
+  },
+  {
+   "caso": "052",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "052",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "053",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "053",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "053",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "054",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "054",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "054",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "055",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "055",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "055",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "056",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "056",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "056",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "057",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 24,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "057",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 6,
+   "tuneles_256": 12
+  },
+  {
+   "caso": "057",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 6,
+   "tuneles_256": 14
+  },
+  {
+   "caso": "058",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "058",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "058",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "059",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "059",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "059",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "060",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "060",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "060",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 6
+  },
+  {
+   "caso": "061",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "061",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "061",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "062",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "062",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "062",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "063",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 9,
+   "tuneles_256": 8
+  },
+  {
+   "caso": "063",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "063",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "064",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 16
+  },
+  {
+   "caso": "064",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "064",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 7,
+   "tuneles_256": 5
+  },
+  {
+   "caso": "065",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "065",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "065",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "066",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 26,
+   "tuneles_256": 29
+  },
+  {
+   "caso": "066",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "066",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "067",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "067",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "067",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "068",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 11,
+   "tuneles_256": 11
+  },
+  {
+   "caso": "068",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "068",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "069",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "069",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "069",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "070",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 25
+  },
+  {
+   "caso": "070",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "070",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "071",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "071",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "071",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 7
+  },
+  {
+   "caso": "072",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "072",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "072",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "073",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 27,
+   "tuneles_256": 29
+  },
+  {
+   "caso": "073",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 11,
+   "tuneles_256": 9
+  },
+  {
+   "caso": "073",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "074",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 24,
+   "tuneles_256": 25
+  },
+  {
+   "caso": "074",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "074",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "075",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 25,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "075",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "075",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "076",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "076",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "076",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "077",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 24
+  },
+  {
+   "caso": "077",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "077",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "078",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "078",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "078",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "079",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 19,
+   "tuneles_256": 19
+  },
+  {
+   "caso": "079",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "079",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "080",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "080",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 5
+  },
+  {
+   "caso": "080",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "081",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 18
+  },
+  {
+   "caso": "081",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "081",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "082",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 24
+  },
+  {
+   "caso": "082",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "082",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 6
+  },
+  {
+   "caso": "083",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "083",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "083",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "084",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 13,
+   "tuneles_256": 13
+  },
+  {
+   "caso": "084",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "084",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "085",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "085",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "085",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "086",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 10,
+   "tuneles_256": 12
+  },
+  {
+   "caso": "086",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 4,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "086",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 5
+  },
+  {
+   "caso": "087",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 27,
+   "tuneles_256": 29
+  },
+  {
+   "caso": "087",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "087",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "088",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "088",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 5,
+   "tuneles_256": 5
+  },
+  {
+   "caso": "088",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "089",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 25,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "089",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "089",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "090",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 24,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "090",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "090",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "091",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 18,
+   "tuneles_256": 17
+  },
+  {
+   "caso": "091",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 6
+  },
+  {
+   "caso": "091",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "092",
+   "particion": "val",
+   "hueso": "SA",
+   "tuneles_nativo": 17,
+   "tuneles_256": 21
+  },
+  {
+   "caso": "092",
+   "particion": "val",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 8
+  },
+  {
+   "caso": "092",
+   "particion": "val",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "093",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 25,
+   "tuneles_256": 20
+  },
+  {
+   "caso": "093",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "093",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "094",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 22,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "094",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "094",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "095",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 24,
+   "tuneles_256": 30
+  },
+  {
+   "caso": "095",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "095",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 3,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "096",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 21,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "096",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 3
+  },
+  {
+   "caso": "096",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 2,
+   "tuneles_256": 4
+  },
+  {
+   "caso": "097",
+   "particion": "test",
+   "hueso": "SA",
+   "tuneles_nativo": 23,
+   "tuneles_256": 23
+  },
+  {
+   "caso": "097",
+   "particion": "test",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "097",
+   "particion": "test",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "098",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 23,
+   "tuneles_256": 28
+  },
+  {
+   "caso": "098",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "098",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 1
+  },
+  {
+   "caso": "099",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 20,
+   "tuneles_256": 22
+  },
+  {
+   "caso": "099",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "099",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 0
+  },
+  {
+   "caso": "100",
+   "particion": "train",
+   "hueso": "SA",
+   "tuneles_nativo": 13,
+   "tuneles_256": 13
+  },
+  {
+   "caso": "100",
+   "particion": "train",
+   "hueso": "LI",
+   "tuneles_nativo": 0,
+   "tuneles_256": 2
+  },
+  {
+   "caso": "100",
+   "particion": "train",
+   "hueso": "RI",
+   "tuneles_nativo": 1,
+   "tuneles_256": 2
+  }
+ ]
+}

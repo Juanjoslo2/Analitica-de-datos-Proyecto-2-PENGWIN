@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PENGWIN · Ingreso</title>
+<style>
+:root{--bg:#0f1115;--panel:#171a21;--borde:#2a2f3a;--txt:#e6e8ec;--sub:#9aa1ad;--acento:#4c9be8;--aviso:#f2c14e;--mal:#ff7b72}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+     background:var(--bg);color:var(--txt);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px}
+form{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--borde);border-radius:12px;padding:22px}
+h1{font-size:18px;margin:0 0 4px}p{color:var(--sub);font-size:13px;margin:0 0 16px}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--borde);background:#0f1115;color:var(--txt);font:inherit}
+input:focus{outline:2px solid var(--acento);border-color:transparent}
+button{width:100%;margin-top:16px;padding:10px;border:0;border-radius:8px;background:var(--acento);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.6}
+#msg{min-height:1.4em;margin-top:12px;font-size:13px;color:var(--mal)}
+.aviso{max-width:360px;color:var(--aviso);font-size:12px;margin-top:14px;text-align:center}
+</style>
+</head>
+<body>
+<form id="f" autocomplete="on">
+  <h1>PENGWIN · fracturas pélvicas</h1>
+  <p>Ingrese con su usuario del proyecto.</p>
+  <label for="u">Usuario</label>
+  <input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" required>
+  <label for="c">Clave</label>
+  <input id="c" name="password" type="password" autocomplete="current-password" maxlength="256" required>
+  <button id="b" type="submit">Ingresar</button>
+  <div id="msg" role="alert"></div>
+</form>
+<div class="aviso">Uso exclusivamente académico. No es un dispositivo médico ni apoya decisiones quirúrgicas reales.</div>
+<script src="static/login.js"></script>
+</body>
+</html>
