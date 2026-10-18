@@ -55,7 +55,7 @@ def resolve_postprocess(*fuentes: dict | None) -> dict:
     """Combina bloques ``postprocess`` sobre ``PP_DEFAULTS``, de menos a más prioritario.
 
     Las claves con valor ``None`` se ignoran, así se pueden pasar los argumentos de una CLI tal
-    cual (los que el usuario no dio valen ``None`` y no pisan la config).
+    cual (los que no se pasaron valen ``None`` y no pisan la config).
     """
     out = dict(PP_DEFAULTS)
     for f in fuentes:

@@ -4,7 +4,8 @@ Cada experimento se escribe AQUÍ **antes** de lanzarlo: id, hipótesis, qué ca
 enunciado lo permite (con cita), métrica primaria y regla de decisión. La regla no se cambia después
 de ver resultados; si se cambia, se explica y la conclusión queda marcada como **exploratoria**.
 
-Reglas comunes (Fase 2 §4):
+Reglas comunes (P1 = referencia `c00_base` a 20 épocas en 5 folds; P4 = confirmación de la Fase 1,
+5 folds a 20 épocas, con el control de semilla `c00b_seed1337`):
 - Selección solo por CV por paciente (`reports/tuning/cv_folds.json`). **Test prohibido** hasta la
   comparación final única.
 - Comparación **emparejada por fold** contra la referencia del **mismo número de épocas**.
@@ -19,7 +20,7 @@ Reglas comunes (Fase 2 §4):
 
 ## F2A — Sin transfer learning
 
-- **id:** `F2A`  ·  **línea:** A (Fase 2 §3.A)  ·  **carpeta:** `reports/tuning/fase2/F2A/`
+- **id:** `F2A`  ·  **línea:** A (sin transfer learning)  ·  **carpeta:** `reports/tuning/fase2/F2A/`
 - **Hipótesis:** el transfer learning del backbone (`checkpoints/fundidora_taller3.pth`, pesos del
   Taller 3) **no mejora** el Dice por fragmento. La semana 9 lo midió por región, en test y con una
   sola semilla (`reports/decisiones_de_diseno.md` §9); nunca se midió su efecto sobre la separación
@@ -27,8 +28,8 @@ Reglas comunes (Fase 2 §4):
 - **Qué cambia:** `model.pretrained: false`. Config ya existente: `configs/ablation_scratch.yaml`
   (hereda `base.yaml` y cambia solo esa clave). **Nada más cambia.**
 - **Por qué lo permite el enunciado:** §4.1 dice "Se permite transfer learning **únicamente** en el
-  backbone"; es un permiso, no una obligación. La Fase 2 §2 lo confirma: "No es obligatorio; probar
-  sin él está permitido y se pide". Además el enunciado §7 exige la ablación con/sin TL en el informe.
+  backbone"; es un permiso, no una obligación. Por eso se
+  prueba sin él. Además el enunciado §7 exige la ablación con/sin TL en el informe.
 - **Diseño:** 5 folds × 20 épocas, semilla 42, λ recalibrados en cada fold. Emparejado contra
   `c00_base`@20 × 5 folds (P1), que es exactamente la misma config con `pretrained: true`.
 - **Métrica primaria:** Dice por fragmento (cada modelo en su propio óptimo de posproceso, grilla
@@ -36,8 +37,8 @@ Reglas comunes (Fase 2 §4):
 - **Regla de decisión:** el TL se declara prescindible si |Δ| < 2σ (es decir, sin TL ≈ con TL) o si
   Δ > 0 (sin TL mejor). Si sin TL es **peor** por más de 2σ, el TL se queda y la línea A se cierra.
 - **Qué desbloquea si sale favorable:** variantes de arquitectura que no tienen que respetar la forma
-  de los pesos de FundidoraPC (5 canales de contexto 2.5D en vez de 3, anchos distintos), que es lo
-  que la Fase 2 §3.A pide justificar con esta medición.
+  de los pesos de FundidoraPC (5 canales de contexto 2.5D en vez de 3, anchos distintos), que solo se
+  justifican con esta medición.
 - **Coste:** 5 corridas × ~1,75 h = ~8,8 h de GPU (~4,4 h de reloj con los 2 carriles).
 - **Estado:** pre-registrado 2026-10-04 08:55. **Encolado cuando P4 libere los carriles.**
 
@@ -45,7 +46,7 @@ Reglas comunes (Fase 2 §4):
 
 ## F2B1 — Representación núcleo/borde predicha directamente (en vez de borde binario)
 
-- **id:** `F2B1`  ·  **línea:** B (Fase 2 §3.B)  ·  **carpeta:** `reports/tuning/fase2/F2B1/`
+- **id:** `F2B1`  ·  **línea:** B (borde y separación)  ·  **carpeta:** `reports/tuning/fase2/F2B1/`
 - **Hipótesis y el número de la Fase 1 que la motiva:** hoy el núcleo se **deriva** restando el borde
   predicho a la región (`core = región & (P(borde) < umbral)`), así que la separación de fragmentos
   **depende del recall del borde, que es 0,193**. Con el borde real el Dice por fragmento sube de
@@ -66,10 +67,10 @@ Reglas comunes (Fase 2 §4):
   épocas.
 - **Regla de decisión:** aporta solo si Δ > 2σ, gana en la mayoría de los folds y no empeora el IoU
   por fragmento. Guardarraíl: F1, AUC, mAP y Dice de región no caen más de 2σ de su propia escala.
-- **Requisitos antes de entrenar en serio** (Fase 2 §4.4): justificación escrita (arriba), prueba de
+- **Requisitos antes de entrenar en serio:** justificación escrita (arriba), prueba de
   overfit de 8 cortes en verde, tests con phantoms del código nuevo y suite completa en verde.
-- **Estado:** pre-registrado 2026-10-04 09:00. Implementación delegada a un subagente; el
-  entrenamiento lo encola el coordinador cuando P4 libere los carriles.
+- **Estado:** pre-registrado 2026-10-04 09:00. El entrenamiento se
+  encola cuando P4 libere los carriles.
 
 ---
 
@@ -93,7 +94,7 @@ con el techo del método `edge` (0,847). Con 1,5 mm de erosión sube a 0,9952.
 
 ## F2B2 — Regresión del mapa de distancia a la superficie de fractura
 
-- **id:** `F2B2`  ·  **línea:** B (Fase 2 §3.B)  ·  **carpeta:** `reports/tuning/fase2/F2B2/`
+- **id:** `F2B2`  ·  **línea:** B (borde y separación)  ·  **carpeta:** `reports/tuning/fase2/F2B2/`
 - **Hipótesis, con los números que la motivan:** el oráculo muestra que la separación funciona si se
   umbraliza una **geometría** correcta: con el borde/núcleo del GT y 1,5 mm de erosión el Dice por
   fragmento es **0,9952**, y sin erosión solo **0,8464**. Con el borde **predicho** hace falta 5 mm
@@ -111,7 +112,7 @@ con el techo del método `edge` (0,847). Con 1,5 mm de erosión sube a 0,9952.
   clasificación y la de detección **no se tocan**.
 - **Por qué lo permite el enunciado:** §3.2 pide dos etapas (región → fragmentos) "de acuerdo con la
   lógica descrita en la literatura del challenge"; la regresión de distancia al borde es
-  explícitamente una de las representaciones de esa literatura y la Fase 2 §3.B la lista como opción.
+  explícitamente una de las representaciones de esa literatura y estaba entre las opciones de la línea B.
   Sigue siendo 2D corte a corte, un backbone, CBAM antes de la bifurcación, tres cabezas, grid y NMS
   propios, y nada de frameworks de alto nivel.
 - **Métrica primaria:** Dice por fragmento, emparejado por fold contra `c00_base`@20.
@@ -119,17 +120,17 @@ con el techo del método `edge` (0,847). Con 1,5 mm de erosión sube a 0,9952.
   medido con el control de P4), gana en la mayoría de los folds y no empeora el IoU por fragmento.
   Guardarraíl: F1, AUC, mAP y Dice de región no caen más de 2σ.
 - **Requisitos antes de entrenar:** overfit de 8 cortes en verde, tests con phantoms y suite completa
-  en verde (Fase 2 §4.4).
+  en verde.
 - **Relación con F2B1:** son **alternativas** para el mismo cuello de botella. Se implementa ahora en
   paralelo (es trabajo de CPU, no compite por GPU) para no dejar los carriles parados cuando F2B1
   entregue su resultado. La decisión de entrenarlo se toma **después** de ver F2B1.
-- **Estado:** pre-registrado 2026-10-05 00:35. Implementación delegada a un subagente.
+- **Estado:** pre-registrado 2026-10-05 00:35.
 
 ---
 
 ## F2C1 — Semillas por h-máxima en vez de umbral global de profundidad
 
-- **id:** `F2C1`  ·  **línea:** posproceso guiado por distancia (TAREA §6; Fase 2 §3 permite priorizar
+- **id:** `F2C1`  ·  **línea:** posproceso guiado por distancia (se prioriza
   por ganancia esperada y coste)  ·  **carpeta:** `reports/tuning/fase2/F2C1/`
 - **Hipótesis, con los números que la motivan:** el oráculo dice que la separación casi perfecta
   (0,9952) se logra erosionando **1,5 mm**, y que a **5 mm** —lo que el modelo real necesita— se cae
@@ -141,8 +142,8 @@ con el techo del método `edge` (0,847). Con 1,5 mm de erosión sube a 0,9952.
   Las **h-máximas** de la transformada de distancia dan **una semilla por cada "montículo"**,
   independientemente de su profundidad absoluta: el fragmento pequeño conserva su semilla y los dos
   grandes siguen separándose. Es la misma familia de técnicas que ya usa el proyecto (watershed
-  guiado por distancia, componentes conexas) y que TAREA §6 señala como práctica de nnU-Net y de los
-  ganadores de PENGWIN.
+  guiado por distancia, componentes conexas) y que es
+  práctica de nnU-Net y de los ganadores de PENGWIN.
 - **Qué cambia:** solo el **posproceso**. Un `method="hmax"` que calcula `d = EDT(núcleo)` y toma como
   semillas las h-máximas de `d` con dinámica `h_mm`, en vez de las componentes de `d > seed_depth_mm`.
   No cambia el modelo, ni la pérdida, ni las métricas, ni los splits. **Cuesta 0 de GPU**: se evalúa
@@ -160,7 +161,7 @@ con el techo del método `edge` (0,847). Con 1,5 mm de erosión sube a 0,9952.
   sobre-segmentación partiría el principal).
 - **Primer paso, antes de evaluar sobre el modelo real:** medir su **techo** con el oráculo (GT), como
   en los demás casos. Si con geometría perfecta no supera al `edt` de 1,5 mm, no hay nada que ganar.
-- **Estado:** pre-registrado 2026-10-05 17:00. Implementación propia (los subagentes agotan la cuota).
+- **Estado:** pre-registrado 2026-10-05 17:00.
 
 ---
 

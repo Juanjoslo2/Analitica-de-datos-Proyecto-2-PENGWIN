@@ -46,8 +46,6 @@ reports/tuning/lambdas/
 reports/tuning/fase2/F2B*/
 reports/train/cv_*
 reports/overfit/overfit_f2b*
-reports/tuning/ESTADO.md
-reports/tuning/PROGRESO.md
 
 # Dashboard: trabajos subidos y ejemplos procesados (se regeneran con 05_app/preparar_ejemplos.py)
 05_app/trabajos/

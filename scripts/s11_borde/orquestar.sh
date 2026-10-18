@@ -1,14 +1,13 @@
 #!/bin/bash
-# Semana 11 · orquestador en ANTON. Corre solo en tmux (el PC puede estar apagado):
+# Semana 11 · orquestador de las corridas en la DGX Spark. Corre sin supervisión, de principio a fin:
 #   etapa 1  cribado: fold 0, 12 épocas, 4 corridas a la vez (control + c11 / c12 / c13)
 #   etapa 2  confirmación de los que pasen (máx. 2): 5 folds × 20 épocas, TTA 5 + edt_hmax fijo
 #   etapa 3  modelo final del ganador (40 épocas, split de siempre) y UNA medición de test
 # Las reglas están en reports/tuning/s11_borde/PREREGISTRO.md y las aplica scripts/s11_borde/decidir.py.
-# Cada etapa (y un latido cada 30 min) se publica en la rama s12-spark del repo privado. Una tarea
-# programada en la nube (routine de claude.ai) revisa esa rama y, cuando ETAPA dice "terminado",
-# redacta los resultados según reports/tuning/s11_borde/TAREA_NUBE.md.
+# Cada etapa (y un resumen cada 30 min) se guarda con un commit en una rama auxiliar (s12-spark),
+# para seguir el avance sin entrar a la máquina.
 #
-# Uso:   tmux new -d -s pengwin-s12 'bash ~/pengwin_s12/scripts/s11_borde/orquestar.sh'
+# Uso:   bash scripts/s11_borde/orquestar.sh   (en una sesión que no se cierre, p. ej. tmux)
 #        DRY=1 → prueba de humo (1 época de 15 pasos, fold 0, validación en vez de test, sin publicar)
 set -u
 R=~/pengwin_s12; J=~/pengwin_s12_jobs; S=$R/reports/tuning/s11_borde; T=$R/reports/tuning
@@ -38,7 +37,7 @@ publicar() {                     # $1 = mensaje del commit
   python3 $R/scripts/s11_borde/estado.py > $S/ESTADO.md 2>&1
   [ "$DRY" = 1 ] && return
   git -C $R add -A reports/tuning/s11_borde >/dev/null 2>&1
-  git -C $R commit -q -m "s12 (ANTON): $1" >/dev/null 2>&1 || true
+  git -C $R commit -q -m "s12: $1" >/dev/null 2>&1 || true
   for i in 1 2 3; do git -C $R push -q origin HEAD:s12-spark >>$S/bitacora.log 2>&1 && return; sleep 60; done
   log "no se pudo publicar en GitHub (se reintenta en el próximo latido)"
 }
@@ -180,5 +179,5 @@ fi
 # ------------------------------------------------------------------ cierre
 for L in A B C D; do touch $J/$L/STOP; done
 etapa "terminado (confirmar: ${CONF:-ninguno} · ganador: ${GANADOR:-ninguno})"
-publicar "fin de la semana 11 en ANTON"
+publicar "fin de la semana 11"
 log "orquestador terminado"

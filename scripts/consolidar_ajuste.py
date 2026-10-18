@@ -2,7 +2,7 @@
 
 Junta los resultados crudos del ajuste de la semana 10 en tres archivos que sí se versionan.
 Los crudos (uno por experimento y por fold, ~250 archivos) se quedan fuera de git (.gitignore)
-y se pueden regenerar en ANTON; el notebook ``04_notebook/02_semana10.ipynb`` (parte B) solo lee
+y se pueden regenerar en la DGX Spark; el notebook ``04_notebook/02_semana10.ipynb`` (parte B) solo lee
 lo consolidado.
 
     reports/tuning/ajuste_posproceso.csv.gz   todos los barridos de posproceso: una fila por

@@ -22,7 +22,7 @@ ni ninguna restricción del enunciado.
   que tocan L_seg cambian las normas de gradiente). Nunca se copió un λ.
 - Se evalúa siempre `last.pth`, no `best.pth`: `selection_score` no incluye el Dice por fragmento y la
   configuración de referencia (`v2_last`) también es el último checkpoint.
-- Todo el cómputo en ANTON (DGX Spark GB10), contenedor `nvcr.io/nvidia/pytorch:25.09-py3`, AMP activa,
+- Todo el cómputo en la DGX Spark (GB10), contenedor `nvcr.io/nvidia/pytorch:25.09-py3`, AMP activa,
   256 px, batch 8.
 
 ## 1. Punto de partida (ya medido, test, `v2_last` + posproceso actual)
@@ -45,7 +45,7 @@ en la **separación de fragmentos**, y dentro de ella en los secundarios de meno
 
 Antes de gastar GPU conviene saber **de quién es la culpa** del Dice por fragmento bajo: ¿del modelo
 (región y borde imperfectos) o del método de separación? Se construyó un "OOF oráculo"
-(`~/pengwin_tuning/oracle_npz.py` → `/data/oof/oracle_gt`) con la **región y el borde tomados del
+(`scripts/oracle_npz.py` → `/data/oof/oracle_gt`) con la **región y el borde tomados del
 ground truth** del caché, y se corrió el mismo posproceso sobre los 85 casos de CV
 (`reports/tuning/pp_oraculo_gt.{csv,json}`).
 
@@ -295,7 +295,7 @@ Del oráculo (§3.3): subir el recall del borde de 0,164 a 1,0 compra +0,159 de 
 
 **Conclusión: el cuello de botella no es un hiperparámetro mal puesto.** Es la capacidad de la cabeza
 de borde para cubrir la superficie de fractura, y eso pide un cambio de diseño (más resolución de
-salida, otra pérdida, supervisión 3D más rica), que queda fuera de lo que este encargo permite.
+salida, otra pérdida, supervisión 3D más rica), que queda fuera de esta campaña: aquí no se cambió la arquitectura.
 
 ### 4.4b Precisión y recall del borde contra el Dice: asociación débil, no explicación
 

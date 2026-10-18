@@ -128,7 +128,7 @@ Reporte y curvas: `reports/overfit/overfit_base.json|png`.
 
 ## 9. Ablación: CBAM y transfer learning (semana 9)
 
-Tres modelos de 40 épocas cada uno, entrenados en ANTON (DGX Spark). Comparten datos, semilla, λ (`reports/lambdas.json`) y configuración; cada ablación cambia una sola cosa. El mejor checkpoint se elige en val (promedio de mAP@0.5, Dice y F1) y se evalúa en **test** (15 pacientes nunca vistos, 4279 cortes) con `scripts/evaluate.py`.
+Tres modelos de 40 épocas cada uno, entrenados en una NVIDIA DGX Spark. Comparten datos, semilla, λ (`reports/lambdas.json`) y configuración; cada ablación cambia una sola cosa. El mejor checkpoint se elige en val (promedio de mAP@0.5, Dice y F1) y se evalúa en **test** (15 pacientes nunca vistos, 4279 cortes) con `scripts/evaluate.py`.
 
 | Test | Base (CBAM + TL) | Sin CBAM | Sin TL (desde cero) | Objetivo §5 |
 |---|---|---|---|---|
@@ -255,7 +255,7 @@ Esta es la línea de partida: el modelo base no separa los secundarios, por las 
 
 ### 10.7 `v2` y la separación por distancia
 
-**`v2`** = borde 3D + `pos_weight` 9 + λ recalibrados + γ (CBAM y cuello) + dropout espacial. Mismos 40 épocas en ANTON. En test, con las métricas de la semana 9, la última época mejora al modelo base en las cajas finas:
+**`v2`** = borde 3D + `pos_weight` 9 + λ recalibrados + γ (CBAM y cuello) + dropout espacial. Las mismas 40 épocas, en la misma máquina. En test, con las métricas de la semana 9, la última época mejora al modelo base en las cajas finas:
 
 | Test | base | v2 (época 22, "mejor") | v2 (época 39) |
 |---|---|---|---|
@@ -332,8 +332,8 @@ Lectura honesta:
 
 ## 11. Ajuste de hiperparámetros (semana 11)
 
-Campaña de ajuste objetivo en ANTON (DGX Spark GB10). Detalle completo y CSV/JSON por experimento en
-`reports/tuning/` (`RESUMEN.md`, `PROGRESO.md`).
+Campaña de ajuste objetivo en la DGX Spark (GB10). Detalle completo y CSV/JSON por experimento en
+`reports/tuning/` (`RESUMEN.md`, `fase2/REGISTRO.md`, `fase2/RESUMEN_FASE2.md`).
 
 **Protocolo.** Selección **solo** por validación cruzada por paciente: k = 5 sobre los 85 casos de
 train+val (`reports/tuning/cv_folds.json`, `scripts/cv_folds.py`, estratificado por nº de
@@ -461,9 +461,9 @@ Detalle y figuras en `04_notebook/02_semana10.ipynb` (secciones 18-21).
 
 Detalle en `04_notebook/03_semana11.ipynb`.
 
-- **Dashboard** (`05_app/`): FastAPI + una página con los tres visualizadores; corre en la GPU de ANTON y
+- **Dashboard** (`05_app/`): FastAPI + una página con los tres visualizadores; corre en la GPU de la DGX Spark y
   se publica en una URL del VPS del equipo mediante un túnel SSH inverso. El enunciado menciona un
-  túnel de Cloudflare; desde la red de ANTON el puerto de salida de Cloudflare (7844) está bloqueado, así
+  túnel de Cloudflare; desde la red de la DGX Spark el puerto de salida de Cloudflare (7844) está bloqueado, así
   que el equipo decidió publicar por su propio VPS (HTTPS con Let's Encrypt). El volumen se sube por
   trozos de 8 MB porque un CT de PENGWIN pesa 30-430 MB.
 - **Orientación por metadatos** (`data_loader.align_to_axes`): un volumen oblicuo se remuestrea a la

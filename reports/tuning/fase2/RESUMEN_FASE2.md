@@ -12,7 +12,7 @@ actual (`base.yaml`, `v2_last`, `edt` dep 5 / thr 0,2). No hay `configs/tuned.ya
 `checkpoints/tuned/`.** El objetivo de fragmento **no se alcanza**: faltan 0,125 de Dice y 0,029 de
 IoU en test.
 
-Protocolo (Fase 2 §4): pre-registro en `REGISTRO.md` antes de lanzar; selección solo por CV por
+Protocolo: pre-registro en `REGISTRO.md` antes de lanzar; selección solo por CV por
 paciente; **test prohibido** para elegir; comparaciones **emparejadas por fold**; un cambio de
 entrenamiento aporta solo si **supera 2σ, gana la mayoría de los folds y no empeora el IoU**, con
 réplica de semilla antes de adoptarlo. Fuente de verdad: `EXPERIMENTOS.csv`.
@@ -67,8 +67,9 @@ Las variantes de posproceso (F2C*) no tocan detección ni clasificación: son la
 - **Línea A (sin TL): sin efecto detectable.** Agrupando las dos semillas (10 pares): Δ +0,0105,
   t = 1,19 (crítico 2,262), 6/10 folds. El efecto es específico de un fold y se repite entre
   semillas (fold 1: +0,063 y +0,050; folds 3-4 negativos en las dos): heterogeneidad entre
-  pacientes, no una mejora global. **El TL del Taller 3 ni ayuda ni estorba en fragmentos.** En la
-  primera lectura publiqué Δ/σ = +2,43 mezclando combos de posproceso; corregido en `PROGRESO.md`.
+  pacientes, no una mejora global. **El TL del Taller 3 ni ayuda ni estorba en fragmentos.** En una
+  primera lectura se reportó Δ/σ = +2,43 mezclando combinaciones de posproceso; lo correcto es la
+  comparación emparejada de arriba (t = 1,19).
 - **Línea B (borde/separación): dos negativos.** `core3` y `dist` empeoran con su propio método, y
   sus controles con `edt` muestran que el modelo entrenado es igual o algo peor que el base. Lo que
   falla es la representación: la erosión geométrica hace falta siempre (§3), y la regresión de
@@ -91,7 +92,8 @@ Las variantes de posproceso (F2C*) no tocan detección ni clasificación: son la
 - **Línea D (sobremuestreo c05):** 1,61σ en la Fase 1. Se debía combinar con lo que ganara en B, y
   B no dio nada.
 
-Cierre por la Fase 2 §6: A y B consecutivas sin nada por encima del ruido, C sin confirmar, y no
+Cierre por el criterio fijado al empezar la fase (dos líneas seguidas sin nada por encima del ruido y
+ninguna hipótesis con ganancia esperada medible): A y B consecutivas sin nada por encima del ruido, C sin confirmar, y no
 queda ninguna hipótesis con ganancia esperada medible y barata. Las que quedan (decodificador de
 borde a resolución completa, supervisión profunda) apuntan al mismo cuello de botella en el que ya
 fallaron dos representaciones, y no hay un número de la Fase 1 que prediga que una tercera vaya a

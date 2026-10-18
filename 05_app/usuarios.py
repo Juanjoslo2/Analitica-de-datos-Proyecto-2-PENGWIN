@@ -10,7 +10,7 @@ Administración de usuarios del dashboard (se corre en el servidor, nunca desde 
     python usuarios.py listar
     python usuarios.py eventos [n]                últimos ingresos, fallos y bloqueos
 
-En ANTON, dentro del contenedor:
+En el servidor del dashboard, dentro del contenedor:
     docker exec -it pengwin-demo python usuarios.py desbloquear profesor
 """
 

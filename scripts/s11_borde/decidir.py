@@ -1,6 +1,6 @@
 """Semana 11 · aplica las reglas de ``reports/tuning/s11_borde/PREREGISTRO.md`` sin intervención humana.
 
-Corre en el host de ANTON (sin pandas ni numpy: solo biblioteca estándar).
+Corre en el host, fuera del contenedor (sin pandas ni numpy: solo biblioteca estándar).
 
     python3 scripts/s11_borde/decidir.py etapa1   ->  reports/tuning/s11_borde/etapa1.json   (cribado, fold 0, 12 épocas)
     python3 scripts/s11_borde/decidir.py etapa2   ->  reports/tuning/s11_borde/etapa2.json   (5 folds, 20 épocas, TTA + edt_hmax)

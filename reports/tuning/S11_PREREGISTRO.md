@@ -9,7 +9,7 @@ funcionan, afinar solo la parte de segmentación con el detector "apagado", porq
 juntas interactúan. También advirtió que la EMA de pesos puede funcionar como un enmascarante si las
 imágenes de entrada no siempre llegan en las mismas condiciones.
 
-## Qué se corre (ANTON, cola `pengwin_jobs`)
+## Qué se corre (DGX Spark, cola de trabajos)
 
 | brazo | qué se entrena | desde | épocas | lr | EMA |
 |---|---|---|---|---|---|

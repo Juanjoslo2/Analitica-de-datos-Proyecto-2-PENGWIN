@@ -1,4 +1,4 @@
-"""Semana 11 · tablero en Markdown de la corrida en ANTON (lo publica orquestar.sh como ESTADO.md).
+"""Semana 11 · tablero en Markdown de la corrida (lo publica orquestar.sh como ESTADO.md).
 
 Solo biblioteca estándar: corre en el host, fuera del contenedor.
 """
@@ -41,7 +41,7 @@ def ultima_epoca(job: Path):
             f"BCE borde train/val {float(u['train_edge_bce']):.3f}/{float(u['val_edge_bce']):.3f}")
 
 
-print(f"# Semana 11 · estado en ANTON\n\nActualizado: {time.strftime('%Y-%m-%d %H:%M:%S')} (hora de ANTON)\n")
+print(f"# Semana 11 · estado de la corrida\n\nActualizado: {time.strftime('%Y-%m-%d %H:%M:%S')} (hora del servidor)\n")
 etapa = (S / "ETAPA").read_text(encoding="utf-8").strip() if (S / "ETAPA").exists() else "sin iniciar"
 print(f"**Etapa:** {etapa}\n")
 print("| carril | estado | trabajo | detalle |\n|---|---|---|---|")

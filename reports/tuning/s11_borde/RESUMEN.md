@@ -3,7 +3,7 @@
 **Pregunta.** La cabeza de borde sobreajusta: en `v2_repro` la BCE del borde en train baja de 0,064 a
 0,005 y la de validación sube de 0,018 a 0,034. ¿La cierra L2, un decodificador más pequeño o uno U-Net++?
 
-**Cómo.** Reglas fijadas antes de entrenar (`PREREGISTRO.md`). Corrió solo en ANTON
+**Cómo.** Reglas fijadas antes de entrenar (`PREREGISTRO.md`). Corrió solo en la DGX Spark
 (`scripts/s11_borde/orquestar.sh`), cuatro carriles en paralelo, 09:22-12:30 del 16 de octubre.
 Cribado en el fold 0 con 12 épocas, misma grilla de posproceso (`edt`, 24 combinaciones, sin TTA).
 

@@ -1,8 +1,7 @@
 #!/bin/bash
-# Semana 11 · un carril de la cola en ANTON: un contenedor NGC que ejecuta en orden los .sh de
+# Semana 11 · un carril de la cola de trabajos: un contenedor NGC que ejecuta en orden los .sh de
 # ~/pengwin_s12_jobs/<carril>/pending (pasan a running y luego a done | failed, cada uno con su .log).
-# Igual que ~/pengwin_queue.sh, pero monta la copia limpia ~/pengwin_s12 y no ~/pengwin, que
-# guarda el trabajo de las semanas 10-11 y no se toca.
+# Monta una copia limpia del repositorio (~/pengwin_s12), separada de la de trabajo de las semanas 10-11.
 # Uso: bash scripts/s11_borde/carril.sh A      |  para que termine al vaciarse: touch ~/pengwin_s12_jobs/A/STOP
 LANE=$1; D=~/pengwin_s12_jobs/$LANE; mkdir -p $D/pending $D/running $D/done $D/failed
 docker rm -f pengwin-s12-$LANE >/dev/null 2>&1 || true
