@@ -26,7 +26,7 @@ Proyecto Integrador Corte 2, Analítica de Datos, UAO 2026-2. Checkpoint: `check
 | Detección | mAP@0.50 | 0,980 | ≥ 0,650 | sí |
 | Detección | mAP@[.50:.95] | 0,864 | ≥ 0,400 | sí |
 | Segmentación de fragmento | Dice | 0,768 | ≥ 0,850 | no |
-| Segmentación de fragmento | IoU | 0,697 | ≥ 0,700 | no |
+| Segmentación de fragmento | IoU | 0,697 | ≥ 0,700 | no concluyente |
 | Segmentación por región | Dice (SA, LI, RI) | 0,971 | — | — |
 
 ## Latencia por imagen (un corte, RTX 3060 Laptop / Intel i7)

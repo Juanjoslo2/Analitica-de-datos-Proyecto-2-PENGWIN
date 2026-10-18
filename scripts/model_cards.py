@@ -37,7 +37,7 @@ def f3(v):
     return "—" if v is None else f"{v:.3f}".replace(".", ",")
 
 
-def tabla(ev, fr):
+def tabla(ev, fr, ic=None):
     filas = ["| Tarea | Métrica | Test | Objetivo (§5) | Cumple |", "|---|---|---|---|---|"]
     for t, n, k, o in OBJ:
         v = ev.get(k)
@@ -45,7 +45,10 @@ def tabla(ev, fr):
     if fr:
         for n, k, o in (("Dice", "dice_fragmento", 0.85), ("IoU", "iou_fragmento", 0.70)):
             v = fr.get(k)
-            filas.append(f"| Segmentación de fragmento | {n} | {f3(v)} | ≥ {f3(o)} | {'sí' if v >= o else 'no'} |")
+            # con IC95 por bootstrap de pacientes: si el objetivo cae dentro del intervalo no se puede afirmar ni negar
+            lo, hi = (ic or {}).get(k, (None, None))
+            cumple = "sí" if v >= o else ("no concluyente" if lo is not None and lo <= o <= hi else "no")
+            filas.append(f"| Segmentación de fragmento | {n} | {f3(v)} | ≥ {f3(o)} | {cumple} |")
     filas.append(f"| Segmentación por región | Dice (SA, LI, RI) | {f3(ev.get('dice_hueso'))} | — | — |")
     return "\n".join(filas)
 
@@ -69,14 +72,14 @@ LIMITES = """- **Fragmentos en contacto:** cuando un secundario toca al principa
 - **Detección:** las cajas de menos de 16 px (ramas del sacro en sus extremos) tienen IoU medio 0,75 contra 0,92 global."""
 
 
-def card(nombre, titulo, ckpt, ev, fr, train, extra_arq, extra_datos, notas, lat=None):
+def card(nombre, titulo, ckpt, ev, fr, train, extra_arq, extra_datos, notas, lat=None, ic=None):
     lam = train.get("lambdas", {}) if train else {}
     lam_s = ", ".join(f"λ_{k} = {str(round(v, 3)).replace('.', ',')}" for k, v in lam.items())
     txt = [f"# Model card · {titulo}", "", AVISO, "",
            f"Proyecto Integrador Corte 2, Analítica de Datos, UAO 2026-2. Checkpoint: `{ckpt}`.", "",
            "## Arquitectura", ARQ.format(cbam=extra_arq, lambdas=lam_s or "—", params=(train or {}).get("parametros", {}).get("total", 0)), "",
            "## Datos y entrenamiento", DATOS.format(extra=extra_datos), "",
-           "## Métricas en test (15 pacientes)", tabla(ev, fr), ""]
+           "## Métricas en test (15 pacientes)", tabla(ev, fr, ic), ""]
     if lat:
         txt += ["## Latencia por imagen (un corte, RTX 3060 Laptop / Intel i7)", "",
                 "| | CPU fp32 | GPU fp32 | GPU AMP | Volumen completo (GPU) |", "|---|---|---|---|---|"]
@@ -116,7 +119,7 @@ def main() -> None:
     card("final", "modelo final (v2_last + TTA + F2C2)", "checkpoints/v2_last/best.pth + configs/tuned.yaml", ev_v2l, g, v2,
          cbam + "; la salida de cada CBAM se mezcla con la identidad, y = x + γ(CBAM(x) − x), con γ aprendible",
          "40 épocas; se entrega la última (`v2_last`). Dropout2d 0,1 en las etapas 3-4 y en el decodificador; borde de fractura 3D como objetivo.",
-         notas_fin, lat)
+         notas_fin, lat, ic={"dice_fragmento": au["dice_ic95"], "iou_fragmento": au["iou_ic95"]})
     card("v2", "v2 (segundo entrenamiento, sin TTA ni F2C2)", "checkpoints/v2/best.pth (época 22) y checkpoints/v2_last/best.pth (época 39)",
          ev_v2l, rj("fragments/v2_last_test_edt.json")["global"], v2, cbam + " y γ aprendible",
          "40 épocas. Cambios frente a la semana 9: borde de fractura 3D, Dropout2d 0,1, γ en CBAM y cuello, λ recalibrados.",
